@@ -81,6 +81,7 @@ class Run:
         self.end_t = end_t
         self.year_end_month = year_end_month
         self.func_dict = {}
+        self.calc_count = 0
 
     def init_df(self, input: 'DataFrame') -> 'DataFrame': 
         df = input
@@ -109,6 +110,7 @@ class Run:
 
     
     def calculate(self):
+        print_progress_bar(0, 100, prefix = 'Progress:', suffix = 'Complete', length = 50)
         for t in range(0, len(self.df)):
             for col in self.df.columns:
                 # visit all indicies and setting the values within underlying pandas dataframe
@@ -122,11 +124,13 @@ class Run:
                 #     flexability in other areas of optimization. BUT, not worth it at thie point. KISS
                 self.get_calc(t, col)
         
+        print_progress_bar(100, 100, prefix = 'Progress:', suffix = 'Complete', length = 50)
         return self.df
 
 
 
     def get_calc(self, t, col):
+        #print('get_calc', col, t)
         if col == 't':
             return t
         
@@ -138,28 +142,51 @@ class Run:
 
         val = self.df.at[t, col]
         if pd.isna(val):
-            print(t, col)
             if col not in self.func_dict:
+                print(self.func_dict)
                 raise Exception('missing input or definition "' + col + '"')
                 print(f'missing input "{col}"')
             else:
                 f = self.func_dict[col]
                 
                 values = []
-                for (pcol, pt, ptype) in f.needs(t):
-                    print(pcol, pt, ptype)
+                needs = f.needs(t)
+                has_t = False
+                for (pcol, pt, ptype) in needs:
                     v = self.get_calc(pt, pcol)
-
 
                     if pcol == 't':
                         values.append(t)
+                        has_t = True
                     elif ptype == 'scaler':
                         values.append(v)
                     else:
                         values.append(list(self.df[pcol].values))
 
-                value = f.fn(*values)
-                self.df.at[t, col] = value
+                
+                
+                
+                if has_t:
+                    
+                    value = f.fn(*values)
+                    #print('get_calc SET', col, values, '----', value)
+                    self.df.at[t, col] = value
+                else:
+                    value = f.fn(*values)
+                    #print('get_calc SET', col, t, values, '----', value)
+                    self.df[col] = value
+                
+
+                self.calc_count += 1
+
+                if(self.calc_count % 1000 == 0):
+                    completed = sum(list(self.df.count()))
+                    # print('completed', completed)
+                    total = self.df.shape[0] * self.df.shape[1]
+                    # print('total', total)
+
+                    print_progress_bar(completed, total, prefix = 'Progress:', suffix = 'Complete', length = 50)
+
                 return value
         else:
             return val
@@ -180,7 +207,7 @@ class ImportedFunc:
         self.identifier
 
     def get_params(self):
-        return self.fn.__code__.co_varnames
+        return self.fn.__code__.co_varnames[0:self.fn.__code__.co_argcount]
 
     def get_code(self):
         return inspect.getsource(self.fn)
@@ -288,10 +315,42 @@ sets = [f + ' = {module}.' + f for f in fs]
 
         funcs = [rets[f] for f in fs]
 
+
         l = []
         for identifier, func in zip(fs, funcs):
+            if not hasattr(func, '__call__'):
+                continue
+            
             f = ImportedFunc(identifier, module, func)
             l.append(f)
 
         return l
 
+
+
+
+
+
+
+# lifted from: https://stackoverflow.com/questions/3173320/text-progress-bar-in-the-console
+# Thank you Stack Overflow user Greenstick
+def print_progress_bar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '=', printEnd = "\r"):
+    """
+    Call in a loop to create terminal progress bar
+    @params:
+        iteration   - Required  : current iteration (Int)
+        total       - Required  : total iterations (Int)
+        prefix      - Optional  : prefix string (Str)
+        suffix      - Optional  : suffix string (Str)
+        decimals    - Optional  : positive number of decimals in percent complete (Int)
+        length      - Optional  : character length of bar (Int)
+        fill        - Optional  : bar fill character (Str)
+        printEnd    - Optional  : end character (e.g. "\r", "\r\n") (Str)
+    """
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filledLength = int(length * iteration // total)
+    bar = fill * filledLength + ' ' * (length - filledLength)
+    print(f'\r{prefix} |{bar}| {percent}% {suffix}', end = printEnd)
+    # Print New Line on Complete
+    if iteration == total: 
+        print()
