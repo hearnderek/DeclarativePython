@@ -7,6 +7,11 @@ import inspect
 
 # regex
 import re
+import time
+
+
+turn_off_progress_bar = False
+watches = []
 
 """
 
@@ -82,6 +87,10 @@ class Run:
         self.year_end_month = year_end_month
         self.func_dict = {}
         self.calc_count = 0
+        self.start_time = None
+        self.last_update_time = None
+        self.df = pd.DataFrame()
+        self.__df_len__ = None
 
     def init_df(self, input: 'DataFrame') -> 'DataFrame': 
         df = input
@@ -89,6 +98,10 @@ class Run:
         self.df = df
         return df
 
+    def get_df_len(self):
+        if self.__df_len__ is None:
+            self.__df_len__ = len(self.df)
+        return self.__df_len__
 
     def process_module(self, module:str):
         funcs = ImportedFunc.get_functions(module)
@@ -110,9 +123,17 @@ class Run:
 
     
     def calculate(self):
+        funcs = self.func_dict
+        g = Graph(funcs, self.get_df_len())
+
+        sorted_cost_cols = list(g.fnodes.values())
+        sorted_cost_cols.sort(key=lambda x: x.cost)
+
+        self.start_time = time.time()
+        self.last_update_time = time.time()
         print_progress_bar(0, 100, prefix = 'Progress:', suffix = 'Complete', length = 50)
         for t in range(0, len(self.df)):
-            for col in self.df.columns:
+            for col in [x.identifier for x in sorted_cost_cols]:
                 # visit all indicies and setting the values within underlying pandas dataframe
                 # All values are memozied, so only calculated once
                 # since it runs on recursive calls, dependency loops will fail (with poor error messages)
@@ -122,19 +143,140 @@ class Run:
                 #     a stack and working through that?
                 #     It would be ineffeciently passing through the graph, but it would give us more 
                 #     flexability in other areas of optimization. BUT, not worth it at thie point. KISS
+                #print(t, col)
                 self.get_calc(t, col)
         
-        print_progress_bar(100, 100, prefix = 'Progress:', suffix = 'Complete', length = 50)
+        seconds_elapsed = int((time.time() - self.start_time)*100)/100
+        print_progress_bar(100, 100, prefix = 'Progress:', suffix = f'Complete　 {seconds_elapsed} sec', length = 50)
         return self.df
 
 
+    # def bredth_calculate(self):
+    #     funcs = self.func_dict
+    #     g = Graph(funcs, self.get_df_len())
+    #     g.print()
+    #     print()
+
+    #     sorted_cost_cols = list(g.fnodes.values())
+    #     sorted_cost_cols.sort(key=lambda x: x.cost)
+
+    #     self.start_time = time.time()
+    #     self.last_update_time = time.time()
+    #     print_progress_bar(0, 100, prefix = 'Progress:', suffix = 'Complete', length = 50)
+        
+    #     while self.df.isnull().values.any():
+    #         for t in range(0, self.get_df_len()):
+    #             for col in [x.identifier for x in sorted_cost_cols]:
+    #                 self.get_one_calc(t, col)
+        
+    #     seconds_elapsed = int((time.time() - self.start_time)*100)/100
+    #     print_progress_bar(100, 100, prefix = 'Progress:', suffix = f'Complete　 {seconds_elapsed} sec', length = 50)
+    #     return self.df
+
+
+    # def get_one_calc(self, t, col):
+    #     #print('get_calc', col, t)
+    #     if col == 't':
+    #         return t
+        
+    #     if t < 0 or t >= self.get_df_len():
+    #         # expected to be handled within user functions
+    #         return 'time out of range'
+
+        
+
+    #     val = self.df.at[t, col]
+    #     if pd.isna(val):
+    #         if col not in self.func_dict:
+    #             print(self.func_dict)
+    #             raise Exception('missing input or definition "' + col + '"')
+    #             print(f'missing input "{col}"')
+    #         else:
+    #             f = self.func_dict[col]
+                
+    #             values = []
+    #             needs = f.needs(t)
+    #             has_t = False
+    #             for (pcol, pt, ptype) in needs:
+                    
+
+    #                 if pcol == 't':
+    #                     values.append(t)
+    #                     has_t = True
+    #                 elif ptype == 'scaler':
+    #                     v = self.df.at[0, pcol]
+    #                     if pd.isna(v):
+    #                         #print('missing', 0, pcol)
+    #                         return pd.NA
+    #                     values.append(v)
+    #                 elif ptype == 'forward reference timeseries':
+    #                     at = max(0, min(pt+1, self.get_df_len()))
+    #                     v = self.df.at[at, pcol]
+    #                     if pd.isna(v):
+    #                         # print('--> missing', at, pcol)
+    #                         return pd.NA
+    #                     values.append(list(self.df[pcol].values))
+    #                 elif ptype == 'back reference timeseries':
+    #                     at = max(0, min(pt-1, self.get_df_len()))
+    #                     v = self.df.at[at, pcol]
+    #                     if pd.isna(v):
+    #                         # print('<- missing', at, pcol)
+    #                         return pd.NA
+    #                     values.append(list(self.df[pcol].values))
+    #                 elif ptype == 'timeseries':
+    #                     at = max(0, min(pt, self.get_df_len()))
+    #                     v = self.df.at[at, pcol]
+    #                     if pd.isna(v):
+    #                         # print('= missing', at, pcol)
+    #                         return pd.NA
+    #                     values.append(list(self.df[pcol].values))
+    #                 else:
+    #                     print('should not happen')
+
+                
+    #             if has_t:
+                    
+    #                 value = f.fn(*values)
+    #                 if col in watches:
+    #                     print('get_calc SET', col, values, '----', value)
+    #                 self.df.at[t, col] = value
+    #             else:
+    #                 value = f.fn(*values)
+    #                 if col in watches:
+    #                     print('get_calc SET', col, t, values, '----', value)
+    #                 self.df[col] = value
+                
+
+    #             self.calc_count += 1
+
+                
+                
+    #             if (time.time() - self.last_update_time) > 0.25: 
+    #                 # This is a pretty expensive operation
+    #                 # There is a noticable slowdown if checked at every 100th of a second
+
+
+    #                 completed = sum(list(self.df.count()))
+    #                 # print('completed', completed)
+    #                 total = self.df.shape[0] * self.df.shape[1]
+    #                 # print('total', total)
+
+    #                 seconds_elapsed = int((time.time() - self.start_time)*10)/10
+    #                 print_progress_bar(completed, total, prefix = 'Progress:', suffix = f'Complete　 {seconds_elapsed} sec', length = 50)
+    #                 self.last_update_time = time.time()
+
+    #             return value
+    #     else:
+    #         return val
+
+            
 
     def get_calc(self, t, col):
         #print('get_calc', col, t)
         if col == 't':
             return t
         
-        if t < 0 or t >= len(self.df):
+        if t < 0 or t >= self.get_df_len():
             # expected to be handled within user functions
             return 'time out of range'
 
@@ -153,46 +295,66 @@ class Run:
                 needs = f.needs(t)
                 has_t = False
                 for (pcol, pt, ptype) in needs:
-                    v = self.get_calc(pt, pcol)
+                    
 
                     if pcol == 't':
+                        
                         values.append(t)
                         has_t = True
                     elif ptype == 'scaler':
+                        v = self.get_calc(0, pcol)
                         values.append(v)
-                    else:
+                    elif ptype == 'forward reference timeseries':
+                        v = self.get_calc(pt+1, pcol)
                         values.append(list(self.df[pcol].values))
+                    elif ptype == 'back reference timeseries':
+                        v = self.get_calc(pt-1, pcol)
+                        values.append(list(self.df[pcol].values))
+                    elif ptype == 'timeseries':
+                        v = self.get_calc(pt, pcol)
+                        values.append(list(self.df[pcol].values))
+                    else:
+                        print('should not happen')
+                    
+                    # else:
+                    #     v = self.get_calc(pt, pcol)
+                    #     values.append(list(self.df[pcol].values))
 
-                
-                
                 
                 if has_t:
                     
                     value = f.fn(*values)
-                    #print('get_calc SET', col, values, '----', value)
+                    if col in watches:
+                        print('get_calc SET', col, values, '----', value)
                     self.df.at[t, col] = value
                 else:
                     value = f.fn(*values)
-                    #print('get_calc SET', col, t, values, '----', value)
+                    if col in watches:
+                        print('get_calc SET', col, t, values, '----', value)
                     self.df[col] = value
                 
 
                 self.calc_count += 1
 
-                if(self.calc_count % 1000 == 0):
+                
+                
+                if (time.time() - self.last_update_time) > 0.25: 
+                    # This is a pretty expensive operation
+                    # There is a noticable slowdown if checked at every 100th of a second
+
+
                     completed = sum(list(self.df.count()))
                     # print('completed', completed)
                     total = self.df.shape[0] * self.df.shape[1]
                     # print('total', total)
 
-                    print_progress_bar(completed, total, prefix = 'Progress:', suffix = 'Complete', length = 50)
+                    seconds_elapsed = int((time.time() - self.start_time)*10)/10
+                    print_progress_bar(completed, total, prefix = 'Progress:', suffix = f'Complete　 {seconds_elapsed} sec', length = 50)
+                    self.last_update_time = time.time()
 
                 return value
         else:
             return val
-
-
-
 
 class ImportedFunc:
 
@@ -202,6 +364,10 @@ class ImportedFunc:
         self.module = module
         self.identifier = identifier
         self.fn = fn
+        self.__type__ = None
+        self.__param_types__ = None
+        self.__is_cumulative__ = None
+        self.steps = None
 
     def f(self):
         self.identifier
@@ -213,7 +379,9 @@ class ImportedFunc:
         return inspect.getsource(self.fn)
 
     def get_type(self):
-        
+        if self.__type__:
+            return self.__type__
+
         truths = dict([(ty, False) for ty in ImportedFunc.types])
         code = self.get_code()
         
@@ -222,6 +390,7 @@ class ImportedFunc:
             truths['timeseries'] = True
         else:
             truths['scaler'] = True
+            self.__type__ = truths
             return truths # <------------ return
 
         if self.identifier in params:
@@ -237,13 +406,18 @@ class ImportedFunc:
             elif '-'  in use:
                 truths['back reference'] = True
 
+        self.__type__ = truths
         return truths
 
 
     def get_param_types(self):
+        if self.__param_types__:
+            return self.__param_types__
+        
         code = self.get_code()
         params = self.get_params()
-        return [(p, ImportedFunc.__get_param_types__(p, code)) for p in params]
+        self.__param_types__ = [(p, ImportedFunc.__get_param_types__(p, code)) for p in params]
+        return self.__param_types__
         
 
     @staticmethod
@@ -275,6 +449,7 @@ class ImportedFunc:
 
     
     def needs(self, t):
+
         typ = self.get_type()
         params = self.get_params()
         
@@ -319,7 +494,9 @@ sets = [f + ' = {module}.' + f for f in fs]
         l = []
         for identifier, func in zip(fs, funcs):
             if not hasattr(func, '__call__'):
+                # print('ignoring ', identifier)
                 continue
+                
             
             f = ImportedFunc(identifier, module, func)
             l.append(f)
@@ -328,6 +505,123 @@ sets = [f + ' = {module}.' + f for f in fs]
 
 
 
+
+
+class Graph:
+    def __init__(self, function_dict, t=1):
+        self.funcs = list(function_dict.items())
+        # self.funcs.sort(key=lambda x: len(x[1].get_params()))
+        self.fnodes = dict([(identifier, Fnode(identifier, f)) for identifier, f in self.funcs])
+        for identifier, f in self.fnodes.items():
+            for param in f.f.get_params():
+                if param in self.fnodes:
+                    f.add_param(self.fnodes[param])
+
+        for identifier, f in self.fnodes.items():
+            f.calculate_cost(t)
+            f.calculate_scost()
+
+    
+    def print(self):
+        values = list(self.fnodes.values())
+        values.sort(key=lambda x: x.cost)
+        for f in values:
+            f.print()
+            print()
+
+class Fnode:
+    def __init__(self, identifier: str, f: ImportedFunc):
+        self.identifier = identifier
+        self.f = f
+        self.cost = None
+        self.scost = ""
+        self.params = []
+        self.cost_by_param = {}
+        self.cost_no_param = ''
+
+    def add_param(self, f:'Fnode'):
+        self.params.append(f)
+
+    def calculate_cost(self, t=1):
+        """
+        any params not added via add_param will be assumed to be an input
+        """
+        self.calculate_scost()
+        self.cost = self.exec_simp_scost(t)
+        return self.cost
+
+    def calculate_scost(self):
+        """
+        any params not added via add_param will be assumed to be an input
+        """
+        if self.scost:
+            return self.scost
+
+        if "t" in self.f.get_params():
+            self.scost = 't'
+            self.cost_no_param = 't'
+        else:
+            self.scost = '1'
+            self.cost_no_param = '1'
+
+        if len(self.params) != 0:
+            param_costs = []
+            for f in self.params:
+                if f.identifier != self.identifier:
+                    fc = f.calculate_scost()
+                    param_costs.append(fc)
+                    self.cost_by_param.update(f.cost_by_param)
+                    self.cost_by_param[f.identifier] = f.cost_no_param
+
+            self.scost += '+' + '+'.join(param_costs) 
+
+        return self.scost
+
+        return s    
+
+
+    def simplify_scost(self):
+        """
+        takes the long form equation generated by calculate_scost and simplifies it
+        """
+        t = 0
+        one = 0
+        xs = list(self.cost_by_param.values())
+        xs.append(self.cost_no_param)
+        
+        for c in list(''.join(xs)):
+            if c == 't':
+                t+=1
+            elif c == '1':
+                one+=1
+
+        s = ''
+        if t > 0:
+            s+= str(t) + '*t'
+        if one > 0:
+            if s != '':
+                s+= ' + '
+            s+= str(one)
+
+        return s    
+        
+
+    def exec_simp_scost(self, t):
+        rets = {}
+        exec(f"t = {t}\nx = {self.simplify_scost()}", globals(), rets)
+        return rets['x']
+
+    def print(self):
+        print(self.identifier + ":")
+        print("    ", self.f.get_params())
+        print("    ", len(self.f.get_params()), "total params")
+        print("    ", len(self.f.get_params()) - len(self.params), "inputs")
+        print("    ", len(self.params), "calculated params")
+        print("    ", self.simplify_scost())
+        print("    ", self.cost, "cost")
+        # print("<code>")
+        # print(self.f.get_code())
+        # print("</code>")
 
 
 
@@ -347,6 +641,9 @@ def print_progress_bar (iteration, total, prefix = '', suffix = '', decimals = 1
         fill        - Optional  : bar fill character (Str)
         printEnd    - Optional  : end character (e.g. "\r", "\r\n") (Str)
     """
+    if turn_off_progress_bar and iteration != total:
+        return
+    
     percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
     filledLength = int(length * iteration // total)
     bar = fill * filledLength + ' ' * (length - filledLength)
@@ -354,3 +651,4 @@ def print_progress_bar (iteration, total, prefix = '', suffix = '', decimals = 1
     # Print New Line on Complete
     if iteration == total: 
         print()
+    pass
