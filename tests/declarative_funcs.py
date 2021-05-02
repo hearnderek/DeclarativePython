@@ -1,3 +1,5 @@
+import helpers
+import deco
 """
 t is a special parameter denoting index within a timeseries starting at t of 0
 
@@ -5,8 +7,9 @@ parameters with the same name as a function will automatically be connected.
 parameters that do not have a matching function MUST be included as inputs during setup
 """
 
+@deco.ignoreme
 def basic(sa, sb):
-    return sa + sb
+    return helpers.mult(sa, sb)
 
 def add_ts(t, tsa, tsb):
     return tsa[t] + tsb[t]

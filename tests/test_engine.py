@@ -10,7 +10,7 @@ def test1():
 
     run = declarative.Engine('2021-04-26')
     run.init_df(df)
-    run.process_module('data.declarative_funcs')
+    run.process_module('declarative_funcs')
     df = run.df
 
     print(df)
