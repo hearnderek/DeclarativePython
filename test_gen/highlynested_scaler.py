@@ -26,5 +26,5 @@ def gen(n):
 
 
 if __name__ == '__main__':
-     gen(5000)
+     gen(50)
 

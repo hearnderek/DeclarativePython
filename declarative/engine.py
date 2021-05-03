@@ -17,11 +17,8 @@ class Engine:
         To get a 30 minute runtime, we would need to split the process across 90 CPUs. (ignoring join time)
     """
 
-    def __init__(self, start_date, start_t=0, end_t=25, year_end_month=9):
-        self.start_date = start_date
-        self.start_t = start_t
-        self.end_t = end_t
-        self.year_end_month = year_end_month
+    def __init__(self, t=1):
+        self.t = t
         self.func_dict = {}
         self.calc_count = 0
         self.start_time = None
@@ -30,10 +27,22 @@ class Engine:
         self.__df_len__ = None
         self.best_path = []
 
-    def init_df(self, input: 'DataFrame') -> 'DataFrame': 
-        df = input
-        df.index.names = ['t']
+    def init_df(self, input: 'DataFrame' = None) -> 'DataFrame': 
+        if input is not None:
+            df = input
+        else:
+            df = pd.DataFrame([pd.NA], columns=['dropme'])
+            df = df.append(pd.Series(), ignore_index=True)
+
+        df = df.loc[df.index.repeat(self.t)]
+        #df = df.reset_index(drop=True)
+
+        #df.index.names = ['t']
+        if 'dropme' in df.columns:
+            df = df.drop(['dropme'], 1)
         self.df = df
+        print('__init__')
+        print(df)
         return df
 
     def get_df_len(self):
@@ -41,10 +50,8 @@ class Engine:
             self.__df_len__ = len(self.df)
         return self.__df_len__
 
-    def process_module(self, module:str):
-        funcs = ImportedFunc.get_functions(module)
-        self.func_dict = dict([(f.identifier, f) for f in funcs])
-
+    def process_funcs(self):
+        funcs = self.func_dict.values()
         param_set = set()
         for f in funcs:
             
@@ -58,6 +65,19 @@ class Engine:
             # Currently panda's NA is signal to the system that we need to calculate this value,
             # Or alternatively error out when no related function is defined when a value is requested.
             self.df[col] = pd.NA
+        
+        self.df = self.df.reset_index(drop=True)
+
+        self.df.index.names = ['t']
+        print('process_funcs')
+        print(self.df)
+
+
+    def process_module(self, module:str):
+        funcs = ImportedFunc.get_functions(module)
+        self.func_dict = dict([(f.identifier, f) for f in funcs])
+        self.process_funcs()
+
 
     
     def calculate(self, best_path=None):
@@ -125,7 +145,7 @@ class Engine:
         - move away from string checks4
         """
 
-        #print('get_calc', col, t)
+        print('get_calc', col, t)
         if col == 't':
             return t
         
