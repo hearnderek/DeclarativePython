@@ -7,7 +7,12 @@ from time import time
 def test1():
     df = pd.read_csv('data/declarative_funcs.csv')
 
-    print(df)
+    d = {}
+    for col in df.columns:
+        d[col] = list(df[col])
+
+    print(d)
+    df = d
 
     run = declarative.Engine(15)
     run.init_df(df)
@@ -19,8 +24,12 @@ def test1():
     df = run.calculate()
     print(df)
 
-    assert not df.isnull().values.any()
-    assert len(df) == 15
+    for xs in df.values():
+        for x in xs:
+            assert x is not pd.NA
+
+    print(df)
+    assert len(df['t']) == 15
 
 
 def test_engine_init():
@@ -31,8 +40,10 @@ def test_engine_init():
     best_path = engine.best_path
     func_dict = engine.func_dict
 
-    assert not df.isnull().values.any()
-    assert len(df) == 5
+    for xs in df.values():
+        for x in xs:
+            assert x is not pd.NA
+    assert len(df['t']) == 5
 
     engine2 = declarative.Engine(5)
     engine2.init_df()
@@ -41,8 +52,10 @@ def test_engine_init():
     engine2.process_funcs()
     df = engine.calculate()
 
-    assert not df.isnull().values.any()
-    assert len(df) == 5
+    for xs in df.values():
+        for x in xs:
+            assert x is not pd.NA
+    assert len(df['t']) == 5
 
 def test_highlynested():
     func_dict = None
@@ -67,7 +80,9 @@ def test_highlynested():
         print(process_time, calc_time)
         print(df)
 
-        assert not df.isnull().values.any()
+        for xs in df.values():
+            for x in xs:
+                assert x is not pd.NA
 
 def test_get_no_calculate():
     engine = declarative.Engine()
@@ -79,7 +94,7 @@ def test_highlynested_timeseries():
     print('HNTS')
     func_dict = None
     best_path = None
-    for n in range(10):
+    for n in range(100):
         engine = declarative.Engine(50 * 12)
         engine.init_df()
         start = time()
@@ -100,4 +115,6 @@ def test_highlynested_timeseries():
         # print(df)
         print(engine.get_calc(50, 'f49'))
 
-        assert not df.isnull().values.any()
+        for xs in df.values():
+            for x in xs:
+                assert x is not pd.NA

@@ -24,23 +24,23 @@ class Engine:
         self.calc_count = 0
         self.start_time = None
         self.last_update_time = None
-        self.df = pd.DataFrame()
+        self.df = { }
         self.__df_len__ = None
         self.best_path = []
 
-    def init_df(self, input: 'DataFrame' = None) -> 'DataFrame':
+    def init_df(self, input: dict = None) -> dict:
         """
         This is where we initialize the pandas dataframe with any inputs, if none are needed leave input as None
         """
         if input is not None:
             df = input
+            for col in input.keys():
+                v = input[col][0]
+                df[col] = [v for i in range(self.t)]
         else:
-            df = pd.DataFrame([pd.NA], columns=['dropme'])
+            df = { }
 
-        df = df.loc[df.index.repeat(self.t)]
-
-        if 'dropme' in df.columns:
-            df = df.drop(['dropme'], 1)
+        df['t'] = [i for i in range(self.t)]
 
         self.df = df
         return df
@@ -51,7 +51,7 @@ class Engine:
         If this has no timeseries data this will equal 1
         """
         if self.__df_len__ is None:
-            self.__df_len__ = len(self.df)
+            self.__df_len__ = len(self.df['t'])
         return self.__df_len__
 
     def process_funcs(self):
@@ -67,15 +67,11 @@ class Engine:
                 if p != 't':
                     param_set.add(p)
 
-        missing_cols = [col for col in param_set if col not in self.df.columns]
+        missing_cols = [col for col in param_set if col not in self.df]
         for col in missing_cols:
             # Currently panda's NA is signal to the system that we need to calculate this value,
             # Or alternatively error out when no related function is defined when a value is requested.
-            self.df[col] = pd.NA
-
-        self.df = self.df.reset_index(drop=True)
-
-        self.df.index.names = ['t']
+            self.df[col] = [pd.NA for x in self.df['t']]
 
     def sorted_columns_by_cost(self):
         funcs = self.func_dict
@@ -154,6 +150,7 @@ class Engine:
         """
 
         # print('get_calc', col, t)
+        # print(self.df)
         if col == 't':
             return t
 
@@ -161,8 +158,8 @@ class Engine:
             # expected to be handled within user functions
             return 'time out of range'
 
-        val = self.df.at[t, col]
-        if pd.isna(val):
+        val = self.df[col][t]
+        if val is pd.NA:
             if col not in self.func_dict:
                 print(self.func_dict)
                 raise Exception('missing input or definition "' + col + '"')
@@ -184,13 +181,13 @@ class Engine:
                         values.append(v)
                     elif ptype == 'forward reference timeseries':
                         v = self.get_calc(pt + 1, pcol)
-                        values.append(list(self.df[pcol].values))
+                        values.append(list(self.df[pcol]))
                     elif ptype == 'back reference timeseries':
                         v = self.get_calc(pt - 1, pcol)
-                        values.append(list(self.df[pcol].values))
+                        values.append(self.df[pcol])
                     elif ptype == 'timeseries':
                         v = self.get_calc(pt, pcol)
-                        values.append(list(self.df[pcol].values))
+                        values.append(self.df[pcol])
                     else:
                         print('should not happen')
 
@@ -203,13 +200,14 @@ class Engine:
                     value = f.fn(*values)
                     if col in watches:
                         print('get_calc SET', col, values, '----', value)
-                    self.df.at[t, col] = value
+                    self.df[col][t] = value
                     self.best_path.append((t, col))
                 else:
                     value = f.fn(*values)
                     if col in watches:
                         print('get_calc SET', col, t, values, '----', value)
-                    self.df[col] = value
+                    for i in self.df['t']:
+                        self.df[col][i] = value
                     self.best_path.append((0, col))
 
                 self.calc_count += 1
@@ -220,9 +218,14 @@ class Engine:
                     # This is a pretty expensive operation
                     # There is a noticable slowdown if checked at every 100th of a second
 
-                    completed = sum(list(self.df.count()))
+                    completed = 0
+                    for xs in self.df.values():
+                        for x in xs:
+                            if x is not pd.NA:
+                                completed += 1
+
                     # print('completed', completed)
-                    total = self.df.shape[0] * self.df.shape[1]
+                    total = (len(self.df.keys())-1) * len(self.df['t'])
                     # print('total', total)
 
                     seconds_elapsed = int((time.time() - self.start_time) * 10) / 10
