@@ -16,7 +16,33 @@ def test1():
 
     print(df)
 
-    print(run.calculate())
+    df = run.calculate()
+    print(df)
+
+    assert not df.isnull().values.any()
+    assert len(df) == 15
+
+
+def test_engine_init():
+    engine = declarative.Engine(5)
+    engine.init_df()
+    engine.process_module('highlynested')
+    df = engine.calculate()
+    best_path = engine.best_path
+    func_dict = engine.func_dict
+
+    assert not df.isnull().values.any()
+    assert len(df) == 5
+
+    engine2 = declarative.Engine(5)
+    engine2.init_df()
+    engine2.func_dict = func_dict
+    engine2.best_path = best_path
+    engine2.process_funcs()
+    df = engine.calculate()
+
+    assert not df.isnull().values.any()
+    assert len(df) == 5
 
 def test_highlynested():
     func_dict = None
@@ -41,13 +67,20 @@ def test_highlynested():
         print(process_time, calc_time)
         print(df)
 
+        assert not df.isnull().values.any()
+
+def test_get_no_calculate():
+    engine = declarative.Engine()
+    engine.init_df()
+    engine.process_module('highlynested')
+    print(engine.get_calc(0, 'f49'))
+
 def test_highlynested_timeseries():
-    return
     print('HNTS')
     func_dict = None
     best_path = None
     for n in range(10):
-        engine = declarative.Engine(35 * 12)
+        engine = declarative.Engine(50 * 12)
         engine.init_df()
         start = time()
         if func_dict:
@@ -64,5 +97,7 @@ def test_highlynested_timeseries():
         best_path = engine.best_path
         calc_time = time() - start
         print(process_time, calc_time)
-        print(df)
+        # print(df)
         print(engine.get_calc(50, 'f49'))
+
+        assert not df.isnull().values.any()

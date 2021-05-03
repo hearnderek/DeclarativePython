@@ -6,6 +6,7 @@ from .graph import Graph
 turn_off_progress_bar = False
 watches = []
 
+
 class Engine:
     """
     TODO:
@@ -27,34 +28,40 @@ class Engine:
         self.__df_len__ = None
         self.best_path = []
 
-    def init_df(self, input: 'DataFrame' = None) -> 'DataFrame': 
+    def init_df(self, input: 'DataFrame' = None) -> 'DataFrame':
+        """
+        This is where we initialize the pandas dataframe with any inputs, if none are needed leave input as None
+        """
         if input is not None:
             df = input
         else:
             df = pd.DataFrame([pd.NA], columns=['dropme'])
-            df = df.append(pd.Series(), ignore_index=True)
 
         df = df.loc[df.index.repeat(self.t)]
-        #df = df.reset_index(drop=True)
 
-        #df.index.names = ['t']
         if 'dropme' in df.columns:
             df = df.drop(['dropme'], 1)
+
         self.df = df
-        print('__init__')
-        print(df)
         return df
 
     def get_df_len(self):
+        """
+        number of rows in our timeseries
+        If this has no timeseries data this will equal 1
+        """
         if self.__df_len__ is None:
             self.__df_len__ = len(self.df)
         return self.__df_len__
 
     def process_funcs(self):
+        """
+        prepare engine for calculation using the already loaded functions
+        """
         funcs = self.func_dict.values()
         param_set = set()
         for f in funcs:
-            
+
             param_set.add(f.identifier)
             for p in f.get_params():
                 if p != 't':
@@ -65,21 +72,27 @@ class Engine:
             # Currently panda's NA is signal to the system that we need to calculate this value,
             # Or alternatively error out when no related function is defined when a value is requested.
             self.df[col] = pd.NA
-        
+
         self.df = self.df.reset_index(drop=True)
 
         self.df.index.names = ['t']
-        print('process_funcs')
-        print(self.df)
 
+    def sorted_columns_by_cost(self):
+        funcs = self.func_dict
+        g = Graph(funcs, self.get_df_len())
 
-    def process_module(self, module:str):
+        sorted_cost_cols = list(g.fnodes.values())
+        sorted_cost_cols.sort(key=lambda x: x.cost)
+        return sorted_cost_cols
+
+    def process_module(self, module: str):
+        """
+        Load in all of a file's functions into the engine.
+        """
         funcs = ImportedFunc.get_functions(module)
         self.func_dict = dict([(f.identifier, f) for f in funcs])
         self.process_funcs()
 
-
-    
     def calculate(self, best_path=None):
         """
         using the input columns, and all of the loaded functions calculate every single value.
@@ -97,8 +110,8 @@ class Engine:
 
         self.start_time = time.time()
         self.last_update_time = time.time()
-        print_progress_bar(0, 100, prefix = 'Progress:', suffix = 'Complete', length = 50)
-        
+        print_progress_bar(0, 100, prefix='Progress:', suffix='Complete', length=50)
+
         if best_path is not None:
             # The best pass is something the user can pass into to speed up the calculation.
             # The easiest way to do this is by letting one pass populate self.best_path,
@@ -108,11 +121,7 @@ class Engine:
         else:
             # taking a calculated guess at a good path through our dependency graph
             # Guess is based on a cost function, which gets bigger the further down the chain the calls are.
-            funcs = self.func_dict
-            g = Graph(funcs, self.get_df_len())
-
-            sorted_cost_cols = list(g.fnodes.values())
-            sorted_cost_cols.sort(key=lambda x: x.cost)
+            sorted_cost_cols = self.sorted_columns_by_cost()
 
             for col in [x.identifier for x in sorted_cost_cols]:
                 for t in range(0, self.get_df_len()):
@@ -129,11 +138,10 @@ class Engine:
                     # After an attempt to do bredth first pass, reverted back to this simple method.
                     # since we're lazy in figuring out what index is needed  
                     self.get_calc(t, col)
-        
-        seconds_elapsed = int((time.time() - self.start_time)*100)/100
-        print_progress_bar(100, 100, prefix = 'Progress:', suffix = f'Complete　 {seconds_elapsed} sec', length = 50)
+
+        seconds_elapsed = int((time.time() - self.start_time) * 100) / 100
+        print_progress_bar(100, 100, prefix='Progress:', suffix=f'Complete　 {seconds_elapsed} sec', length=50)
         return self.df
-            
 
     def get_calc(self, t, col):
         """
@@ -145,15 +153,13 @@ class Engine:
         - move away from string checks4
         """
 
-        print('get_calc', col, t)
+        # print('get_calc', col, t)
         if col == 't':
             return t
-        
+
         if t < 0 or t >= self.get_df_len():
             # expected to be handled within user functions
             return 'time out of range'
-
-        
 
         val = self.df.at[t, col]
         if pd.isna(val):
@@ -163,68 +169,65 @@ class Engine:
                 print(f'missing input "{col}"')
             else:
                 f = self.func_dict[col]
-                
+
                 values = []
                 needs = f.needs(t)
                 has_t = False
                 for (pcol, pt, ptype) in needs:
-                    
 
                     if pcol == 't':
-                        
+
                         values.append(t)
                         has_t = True
                     elif ptype == 'scaler':
                         v = self.get_calc(0, pcol)
                         values.append(v)
                     elif ptype == 'forward reference timeseries':
-                        v = self.get_calc(pt+1, pcol)
+                        v = self.get_calc(pt + 1, pcol)
                         values.append(list(self.df[pcol].values))
                     elif ptype == 'back reference timeseries':
-                        v = self.get_calc(pt-1, pcol)
+                        v = self.get_calc(pt - 1, pcol)
                         values.append(list(self.df[pcol].values))
                     elif ptype == 'timeseries':
                         v = self.get_calc(pt, pcol)
                         values.append(list(self.df[pcol].values))
                     else:
                         print('should not happen')
-                    
+
                     # else:
                     #     v = self.get_calc(pt, pcol)
                     #     values.append(list(self.df[pcol].values))
 
-                
                 if has_t:
-                    
+
                     value = f.fn(*values)
                     if col in watches:
                         print('get_calc SET', col, values, '----', value)
                     self.df.at[t, col] = value
-                    self.best_path.append( (t, col) )
+                    self.best_path.append((t, col))
                 else:
                     value = f.fn(*values)
                     if col in watches:
                         print('get_calc SET', col, t, values, '----', value)
                     self.df[col] = value
-                    self.best_path.append( (-1, col) )
-                
+                    self.best_path.append((0, col))
 
                 self.calc_count += 1
 
-                
-                
-                if (time.time() - self.last_update_time) > 1.0: 
+                if not self.last_update_time:
+                    self.last_update_time = time.time()
+                if (time.time() - self.last_update_time) > 1.0:
                     # This is a pretty expensive operation
                     # There is a noticable slowdown if checked at every 100th of a second
-
 
                     completed = sum(list(self.df.count()))
                     # print('completed', completed)
                     total = self.df.shape[0] * self.df.shape[1]
                     # print('total', total)
 
-                    seconds_elapsed = int((time.time() - self.start_time)*10)/10
-                    print_progress_bar(completed, total, prefix = 'Progress:', suffix = f'Complete　 {seconds_elapsed} sec', length = 50)
+                    seconds_elapsed = int((time.time() - self.start_time) * 10) / 10
+                    print_progress_bar(completed, total, prefix='Progress:', suffix=f'Complete　 {seconds_elapsed} sec',
+                                       length=50)
                     self.last_update_time = time.time()
 
                 return value
@@ -234,7 +237,7 @@ class Engine:
 
 # lifted from: https://stackoverflow.com/questions/3173320/text-progress-bar-in-the-console
 # Thank you Stack Overflow user Greenstick
-def print_progress_bar (iteration, total, prefix = '', suffix = '', decimals = 1, length = 100, fill = '=', printEnd = "\r"):
+def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, length=100, fill='=', printEnd="\r"):
     """
     Call in a loop to create terminal progress bar
     @params:
@@ -249,12 +252,12 @@ def print_progress_bar (iteration, total, prefix = '', suffix = '', decimals = 1
     """
     if turn_off_progress_bar and iteration != total:
         return
-    
+
     percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
     filledLength = int(length * iteration // total)
     bar = fill * filledLength + ' ' * (length - filledLength)
-    print(f'\r{prefix} |{bar}| {percent}% {suffix}', end = printEnd)
+    print(f'\r{prefix} |{bar}| {percent}% {suffix}', end=printEnd)
     # Print New Line on Complete
-    if iteration == total: 
+    if iteration == total:
         print()
     pass
