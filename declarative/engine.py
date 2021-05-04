@@ -7,6 +7,11 @@ turn_off_progress_bar = False
 watches = []
 
 
+class NotCalculated:
+    def __init__(self):
+        pass
+
+
 class Engine:
     """
     TODO:
@@ -18,13 +23,13 @@ class Engine:
         To get a 30 minute runtime, we would need to split the process across 90 CPUs. (ignoring join time)
     """
 
-    def __init__(self, t=1):
+    def __init__(self, t=1, input: dict = None):
         self.t = t
         self.func_dict = {}
         self.calc_count = 0
         self.start_time = None
         self.last_update_time = None
-        self.df = { }
+        self.results = {}
         self.__df_len__ = None
         self.best_path = []
 
@@ -33,17 +38,17 @@ class Engine:
         This is where we initialize the pandas dataframe with any inputs, if none are needed leave input as None
         """
         if input is not None:
-            df = input
+            d = input
             for col in input.keys():
                 v = input[col][0]
-                df[col] = [v for i in range(self.t)]
+                d[col] = [v for i in range(self.t)]
         else:
-            df = { }
+            d = {}
 
-        df['t'] = [i for i in range(self.t)]
+        d['t'] = [i for i in range(self.t)]
 
-        self.df = df
-        return df
+        self.results = d
+        return d
 
     def get_df_len(self):
         """
@@ -51,7 +56,7 @@ class Engine:
         If this has no timeseries data this will equal 1
         """
         if self.__df_len__ is None:
-            self.__df_len__ = len(self.df['t'])
+            self.__df_len__ = len(self.results['t'])
         return self.__df_len__
 
     def process_funcs(self):
@@ -67,11 +72,11 @@ class Engine:
                 if p != 't':
                     param_set.add(p)
 
-        missing_cols = [col for col in param_set if col not in self.df]
+        missing_cols = [col for col in param_set if col not in self.results]
         for col in missing_cols:
             # Currently panda's NA is signal to the system that we need to calculate this value,
             # Or alternatively error out when no related function is defined when a value is requested.
-            self.df[col] = [pd.NA for x in self.df['t']]
+            self.results[col] = [pd.NA for x in self.results['t']]
 
     def sorted_columns_by_cost(self):
         funcs = self.func_dict
@@ -137,7 +142,7 @@ class Engine:
 
         seconds_elapsed = int((time.time() - self.start_time) * 100) / 100
         print_progress_bar(100, 100, prefix='Progress:', suffix=f'Complete　 {seconds_elapsed} sec', length=50)
-        return self.df
+        return self.results
 
     def get_calc(self, t, col):
         """
@@ -150,7 +155,7 @@ class Engine:
         """
 
         # print('get_calc', col, t)
-        # print(self.df)
+        # print(self.results)
         if col == 't':
             return t
 
@@ -158,84 +163,79 @@ class Engine:
             # expected to be handled within user functions
             return 'time out of range'
 
-        val = self.df[col][t]
-        if val is pd.NA:
-            if col not in self.func_dict:
-                print(self.func_dict)
-                raise Exception('missing input or definition "' + col + '"')
-                print(f'missing input "{col}"')
-            else:
-                f = self.func_dict[col]
-
-                values = []
-                needs = f.needs(t)
-                has_t = False
-                for (pcol, pt, ptype) in needs:
-
-                    if pcol == 't':
-
-                        values.append(t)
-                        has_t = True
-                    elif ptype == 'scaler':
-                        v = self.get_calc(0, pcol)
-                        values.append(v)
-                    elif ptype == 'forward reference timeseries':
-                        v = self.get_calc(pt + 1, pcol)
-                        values.append(list(self.df[pcol]))
-                    elif ptype == 'back reference timeseries':
-                        v = self.get_calc(pt - 1, pcol)
-                        values.append(self.df[pcol])
-                    elif ptype == 'timeseries':
-                        v = self.get_calc(pt, pcol)
-                        values.append(self.df[pcol])
-                    else:
-                        print('should not happen')
-
-                    # else:
-                    #     v = self.get_calc(pt, pcol)
-                    #     values.append(list(self.df[pcol].values))
-
-                if has_t:
-
-                    value = f.fn(*values)
-                    if col in watches:
-                        print('get_calc SET', col, values, '----', value)
-                    self.df[col][t] = value
-                    self.best_path.append((t, col))
-                else:
-                    value = f.fn(*values)
-                    if col in watches:
-                        print('get_calc SET', col, t, values, '----', value)
-                    for i in self.df['t']:
-                        self.df[col][i] = value
-                    self.best_path.append((0, col))
-
-                self.calc_count += 1
-
-                if not self.last_update_time:
-                    self.last_update_time = time.time()
-                if (time.time() - self.last_update_time) > 1.0:
-                    # This is a pretty expensive operation
-                    # There is a noticable slowdown if checked at every 100th of a second
-
-                    completed = 0
-                    for xs in self.df.values():
-                        for x in xs:
-                            if x is not pd.NA:
-                                completed += 1
-
-                    # print('completed', completed)
-                    total = (len(self.df.keys())-1) * len(self.df['t'])
-                    # print('total', total)
-
-                    seconds_elapsed = int((time.time() - self.start_time) * 10) / 10
-                    print_progress_bar(completed, total, prefix='Progress:', suffix=f'Complete　 {seconds_elapsed} sec',
-                                       length=50)
-                    self.last_update_time = time.time()
-
-                return value
-        else:
+        val = self.results[col][t]
+        if val is not pd.NA:
             return val
+
+        if col not in self.func_dict:
+            print(self.func_dict)
+            raise Exception('missing input or definition "' + col + '"')
+            print(f'missing input "{col}"')
+        else:
+            f = self.func_dict[col]
+
+            values = []
+            needs = f.needs(t)
+            has_t = False
+            for (pcol, pt, ptype) in needs:
+
+                if pcol == 't':
+
+                    values.append(t)
+                    has_t = True
+                elif ptype == 'scaler':
+                    v = self.get_calc(0, pcol)
+                    values.append(v)
+                elif ptype == 'forward reference timeseries':
+                    v = self.get_calc(pt + 1, pcol)
+                    values.append(list(self.results[pcol]))
+                elif ptype == 'back reference timeseries':
+                    v = self.get_calc(pt - 1, pcol)
+                    values.append(self.results[pcol])
+                elif ptype == 'timeseries':
+                    v = self.get_calc(pt, pcol)
+                    values.append(self.results[pcol])
+                else:
+                    print('should not happen')
+
+            if has_t:
+                value = f.fn(*values)
+                if col in watches:
+                    print('get_calc SET', col, values, '----', value)
+                self.results[col][t] = value
+                self.best_path.append((t, col))
+            else:
+                value = f.fn(*values)
+                if col in watches:
+                    print('get_calc SET', col, t, values, '----', value)
+                for i in self.results['t']:
+                    self.results[col][i] = value
+                self.best_path.append((0, col))
+
+            self.calc_count += 1
+
+            if not self.last_update_time:
+                self.last_update_time = time.time()
+            if (time.time() - self.last_update_time) > 1.0:
+                # This is a pretty expensive operation
+                # There is a noticable slowdown if checked at every 100th of a second
+
+                completed = 0
+                for xs in self.results.values():
+                    for x in xs:
+                        if x is not pd.NA:
+                            completed += 1
+
+                # print('completed', completed)
+                total = (len(self.results.keys()) - 1) * len(self.results['t'])
+                # print('total', total)
+
+                seconds_elapsed = int((time.time() - self.start_time) * 10) / 10
+                print_progress_bar(completed, total, prefix='Progress:', suffix=f'Complete　 {seconds_elapsed} sec',
+                                   length=50)
+                self.last_update_time = time.time()
+
+            return value
 
 
 # lifted from: https://stackoverflow.com/questions/3173320/text-progress-bar-in-the-console

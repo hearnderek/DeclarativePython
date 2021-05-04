@@ -17,7 +17,7 @@ def test1():
     run = declarative.Engine(15)
     run.init_df(df)
     run.process_module('declarative_funcs')
-    df = run.df
+    df = run.results
 
     print(df)
 
@@ -94,8 +94,8 @@ def test_highlynested_timeseries():
     print('HNTS')
     func_dict = None
     best_path = None
-    for n in range(100):
-        engine = declarative.Engine(50 * 12)
+    for n in range(10):
+        engine = declarative.Engine(35 * 12)
         engine.init_df()
         start = time()
         if func_dict:
