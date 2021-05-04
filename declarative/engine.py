@@ -6,10 +6,92 @@ from .graph import Graph
 turn_off_progress_bar = False
 watches = []
 
+"""
+Need to determine my vocabulary
 
-class NotCalculated:
-    def __init__(self):
-        pass
+
+Inforce File:
+    row based input file.
+    every row of input can be run in parallel
+    
+
+
+
+"""
+
+
+def convert_list_to_tuple(ls):
+    return tuple(x for x in ls)
+
+
+class IterativeEngine:
+    def __init__(self, inputs: pd.DataFrame, module: str, t=1):
+        self.module = module
+
+
+
+        # Convert dataframe into python dictionaries for faster iteration
+        self.input_columns = list(inputs.columns)
+        rows = len(inputs)
+        self.input_rows = []
+
+        d = {}
+        for col in self.input_columns:
+            d[col] = list(inputs[col])
+
+        for i in range(rows):
+            rd = {}
+            for col in self.input_columns:
+                rd[col] = [d[col][i]]
+            self.input_rows.append(rd)
+
+        self.results = {}
+        self.engine = Engine(t)
+
+    def calculate(self, processors=1):
+        best_path = None
+        func_dict = None
+        i = 0
+        for input in self.input_rows:
+            if func_dict and best_path:
+                self.engine.func_dict = func_dict
+                self.engine.best_path = best_path
+            self.engine.init_df(input)
+            self.engine.process_module(self.module)
+            self.results[i] = self.engine.calculate(best_path)
+            # print(self.results)
+            i += 1
+
+    def results_to_df(self):
+        d = None
+
+        print(self.results)
+        for i, result in self.results.items():
+            print(i)
+            print(result)
+            if d is None:
+                d = {'result_id':[]}
+                for col in result.keys():
+                    d[col] = []
+
+
+            for t in result['t']:
+                d['result_id'].append(i)
+
+            for col, xs in result.items():
+                for x in xs:
+                    d[col].append(xs)
+
+        rows = []
+        columns = []
+        for c, r in d.items():
+            columns.append(c)
+            rows.append(r)
+
+        print(columns)
+        print(len(columns), len(rows))
+
+        return pd.DataFrame.from_dict(d, orient='columns')
 
 
 class Engine:
