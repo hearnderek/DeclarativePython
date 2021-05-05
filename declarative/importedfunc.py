@@ -54,7 +54,7 @@ class ImportedFunc:
             truths['self reference'] = True
 
 
-        reg_identifer_timeseries_usages = '\S*\[[^\]]*\]'
+        reg_identifer_timeseries_usages = r'\S*\[[^\]]*\]'
         timeseries_uses = re.findall(reg_identifer_timeseries_usages, code, re.MULTILINE)
 
         for use in timeseries_uses:
@@ -91,7 +91,7 @@ class ImportedFunc:
             If we know this we can calculate a like optimal graph traversal.
         """
         
-        reg_identifer_timeseries_usages = param + '\[[^\]]*\]'
+        reg_identifer_timeseries_usages = param + r'\[[^\]]*\]'
         timeseries_uses = re.findall(reg_identifer_timeseries_usages, code, re.MULTILINE)
         
         if len(timeseries_uses) == 0:
@@ -157,30 +157,30 @@ class ImportedFunc:
                 mymodule.myfunction(...)
         """
 
+
+
+
         rets = {}
         exec("""
 import {module}
+from inspect import getmembers, isfunction
+functions_list = getmembers({module}, isfunction)
+print('hello!!! {module}')
+print(functions_list)
 
+# dir({module})
 # function names as strings
-fs =  [f for f in dir({module}) if '__' not in f]
-
-# exec me to get function object"
-sets = [f + ' = {module}.' + f for f in fs]
+fs =  [f for f in functions_list if '__' not in f[0]]
         """.format(module=module), globals(), rets)
-        fs = rets['fs']
-        sets = rets['sets']
 
-        rets = {}
-        exec(f"import {module}\n" + "\n".join(sets), globals(), rets)
-
-        funcs = [rets[f] for f in fs]
+        funcs = rets['fs']
 
 
         l = []
-        for identifier, func in zip(fs, funcs):
-            if not hasattr(func, '__call__'):
-                # print('ignoring ', identifier)
-                continue
+        for identifier, func in funcs:
+            # if not hasattr(func, '__call__'):
+            #     # print('ignoring ', identifier)
+            #     continue
                 
             
             f = ImportedFunc(identifier, module, func)
