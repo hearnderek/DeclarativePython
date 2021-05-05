@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import time
 from .importedfunc import ImportedFunc
 from .graph import Graph
@@ -25,7 +26,7 @@ def convert_list_to_tuple(ls):
 
 
 class IterativeEngine:
-    def __init__(self, inputs: pd.DataFrame, module: str, t=1):
+    def __init__(self, inputs: pd.DataFrame, module: str, t=1, display_progressbar=True):
         self.module = module
 
 
@@ -46,7 +47,7 @@ class IterativeEngine:
             self.input_rows.append(rd)
 
         self.results = {}
-        self.engine = Engine(t)
+        self.engine = Engine(t, display_progressbar=display_progressbar)
 
     def calculate(self, processors=1):
         best_path = None
@@ -56,31 +57,45 @@ class IterativeEngine:
             if func_dict and best_path:
                 self.engine.func_dict = func_dict
                 self.engine.best_path = best_path
-            self.engine.init_df(input)
-            self.engine.process_module(self.module)
-            self.results[i] = self.engine.calculate(best_path)
-            # print(self.results)
+                self.engine.init_df(input)
+                self.engine.process_funcs()
+                self.results[i] = self.engine.calculate(best_path)
+            else:
+                self.engine.init_df(input)
+                self.engine.process_module(self.module)
+                self.results[i] = self.engine.calculate(best_path)
+                best_path = self.engine.best_path
+                func_dict = self.engine.func_dict
+
             i += 1
 
+    def df_columns(self):
+        if not self.results:
+            return []
+
+        fst = self.results[0]
+        columns = ['result_id']
+        for col in fst.keys():
+            columns.append(col)
+
+        return columns
+
+
+
     def results_to_df(self):
-        d = None
 
-        print(self.results)
+
+        df_columns = self.df_columns()
+        d = dict([(col, []) for col in df_columns])
+
         for i, result in self.results.items():
-            print(i)
-            print(result)
-            if d is None:
-                d = {'result_id':[]}
-                for col in result.keys():
-                    d[col] = []
-
 
             for t in result['t']:
                 d['result_id'].append(i)
 
             for col, xs in result.items():
                 for x in xs:
-                    d[col].append(xs)
+                    d[col].append(x)
 
         rows = []
         columns = []
@@ -88,10 +103,9 @@ class IterativeEngine:
             columns.append(c)
             rows.append(r)
 
-        print(columns)
-        print(len(columns), len(rows))
-
-        return pd.DataFrame.from_dict(d, orient='columns')
+        df = pd.DataFrame.from_dict(d, orient='columns')
+        df = df.set_index(['result_id', 't'])
+        return df
 
 
 class Engine:
@@ -105,8 +119,9 @@ class Engine:
         To get a 30 minute runtime, we would need to split the process across 90 CPUs. (ignoring join time)
     """
 
-    def __init__(self, t=1, input: dict = None):
+    def __init__(self, t=1, input: dict = None, display_progressbar=True):
         self.t = t
+        self.display_progressbar = display_progressbar
         self.func_dict = {}
         self.calc_count = 0
         self.start_time = None
@@ -132,15 +147,6 @@ class Engine:
         self.results = d
         return d
 
-    def get_df_len(self):
-        """
-        number of rows in our timeseries
-        If this has no timeseries data this will equal 1
-        """
-        if self.__df_len__ is None:
-            self.__df_len__ = len(self.results['t'])
-        return self.__df_len__
-
     def process_funcs(self):
         """
         prepare engine for calculation using the already loaded functions
@@ -162,7 +168,7 @@ class Engine:
 
     def sorted_columns_by_cost(self):
         funcs = self.func_dict
-        g = Graph(funcs, self.get_df_len())
+        g = Graph(funcs, self.t)
 
         sorted_cost_cols = list(g.fnodes.values())
         sorted_cost_cols.sort(key=lambda x: x.cost)
@@ -193,7 +199,8 @@ class Engine:
 
         self.start_time = time.time()
         self.last_update_time = time.time()
-        print_progress_bar(0, 100, prefix='Progress:', suffix='Complete', length=50)
+        if self.display_progressbar:
+            print_progress_bar(0, 100, prefix='Progress:', suffix='Complete', length=50)
 
         if best_path is not None:
             # The best pass is something the user can pass into to speed up the calculation.
@@ -207,7 +214,7 @@ class Engine:
             sorted_cost_cols = self.sorted_columns_by_cost()
 
             for col in [x.identifier for x in sorted_cost_cols]:
-                for t in range(0, self.get_df_len()):
+                for t in range(0, self.t):
                     # visit all indicies and setting the values within underlying pandas dataframe
                     # All values are memozied, so only calculated once
                     # since it runs on recursive calls, dependency loops will fail (with poor error messages)
@@ -223,7 +230,8 @@ class Engine:
                     self.get_calc(t, col)
 
         seconds_elapsed = int((time.time() - self.start_time) * 100) / 100
-        print_progress_bar(100, 100, prefix='Progress:', suffix=f'Complete　 {seconds_elapsed} sec', length=50)
+        if self.display_progressbar:
+            print_progress_bar(100, 100, prefix='Progress:', suffix=f'Complete　 {seconds_elapsed} sec', length=50)
         return self.results
 
     def get_calc(self, t, col):
@@ -241,7 +249,7 @@ class Engine:
         if col == 't':
             return t
 
-        if t < 0 or t >= self.get_df_len():
+        if t < 0 or t >= self.t:
             # expected to be handled within user functions
             return 'time out of range'
 
@@ -313,8 +321,8 @@ class Engine:
                 # print('total', total)
 
                 seconds_elapsed = int((time.time() - self.start_time) * 10) / 10
-                print_progress_bar(completed, total, prefix='Progress:', suffix=f'Complete　 {seconds_elapsed} sec',
-                                   length=50)
+                if self.display_progressbar:
+                    print_progress_bar(completed, total, prefix='Progress:', suffix=f'Complete　 {seconds_elapsed} sec', length=50)
                 self.last_update_time = time.time()
 
             return value
@@ -335,8 +343,6 @@ def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, lengt
         fill        - Optional  : bar fill character (Str)
         printEnd    - Optional  : end character (e.g. "\r", "\r\n") (Str)
     """
-    if turn_off_progress_bar and iteration != total:
-        return
 
     percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
     filledLength = int(length * iteration // total)
