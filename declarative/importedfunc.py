@@ -2,6 +2,12 @@ import re
 import inspect
 
 
+SCALER = 0
+TIMESERIES = 1
+FORWARD_REFERENCE_TIMESERIES = 2
+BACK_REFERENCE_TIMESERIES = 3
+
+
 class ImportedFunc:
     """
     Representation of a function loaded into our dependency calculation engine
@@ -95,7 +101,7 @@ class ImportedFunc:
         timeseries_uses = re.findall(reg_identifer_timeseries_usages, code, re.MULTILINE)
         
         if len(timeseries_uses) == 0:
-            return 'scaler'
+            return SCALER
 
         for use in timeseries_uses:
             fw = False
@@ -109,11 +115,11 @@ class ImportedFunc:
                 raise('forward and back reference on same identifier is not supported')
 
             if fw:
-                return 'forward reference timeseries'
+                return FORWARD_REFERENCE_TIMESERIES
             elif bk:
-                return 'back reference timeseries'
+                return BACK_REFERENCE_TIMESERIES
             else:
-                return 'timeseries'
+                return TIMESERIES
 
     
     def needs(self, t):
@@ -122,16 +128,16 @@ class ImportedFunc:
         params = self.get_params()
         
         if typ == 'scaler':
-            return [(p, None, 'scaler') for p in params]
+            return [(p, None, SCALER) for p in params]
 
         l = []
         for param, ptype in self.get_param_types():
             needed_t = 0
-            if ptype == 'forward reference timeseries':
+            if ptype == FORWARD_REFERENCE_TIMESERIES:
                 needed_t = t+1
-            elif ptype == 'back reference timeseries':
+            elif ptype == BACK_REFERENCE_TIMESERIES:
                 needed_t = t-1
-            elif ptype == 'timeseries':
+            elif ptype == TIMESERIES:
                 needed_t = t
 
             l.append((param, needed_t, ptype))

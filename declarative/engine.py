@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import time
-from .importedfunc import ImportedFunc
+from .importedfunc import ImportedFunc, FORWARD_REFERENCE_TIMESERIES, BACK_REFERENCE_TIMESERIES, SCALER, TIMESERIES
 from .graph import Graph
 
 turn_off_progress_bar = False
@@ -70,6 +70,9 @@ class IterativeEngine:
             i += 1
 
     def df_columns(self):
+        """
+        Generates the columns for our results to be put into a pandas' dataframe
+        """
         if not self.results:
             return []
 
@@ -80,11 +83,11 @@ class IterativeEngine:
 
         return columns
 
-
-
     def results_to_df(self):
-
-
+        """
+        Put all calculated results into a pandas' dataframe.
+        result_id and t will serve as our two indexes.
+        """
         df_columns = self.df_columns()
         d = dict([(col, []) for col in df_columns])
 
@@ -273,16 +276,16 @@ class Engine:
 
                     values.append(t)
                     has_t = True
-                elif ptype == 'scaler':
+                elif ptype == SCALER:
                     v = self.get_calc(0, pcol)
                     values.append(v)
-                elif ptype == 'forward reference timeseries':
+                elif ptype == FORWARD_REFERENCE_TIMESERIES:
                     v = self.get_calc(pt + 1, pcol)
                     values.append(list(self.results[pcol]))
-                elif ptype == 'back reference timeseries':
+                elif ptype == BACK_REFERENCE_TIMESERIES:
                     v = self.get_calc(pt - 1, pcol)
                     values.append(self.results[pcol])
-                elif ptype == 'timeseries':
+                elif ptype == TIMESERIES:
                     v = self.get_calc(pt, pcol)
                     values.append(self.results[pcol])
                 else:
