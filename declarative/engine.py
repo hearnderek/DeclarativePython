@@ -4,8 +4,6 @@ import time
 from .importedfunc import ImportedFunc, FORWARD_REFERENCE_TIMESERIES, BACK_REFERENCE_TIMESERIES, SCALER, TIMESERIES
 from .graph import Graph
 
-turn_off_progress_bar = False
-watches = []
 
 """
 Need to determine my vocabulary
@@ -51,12 +49,10 @@ class IterativeEngine:
 
     def calculate(self, processors=1):
         best_path = None
-        func_dict = None
         i = 0
         for input in self.input_rows:
-            if func_dict and best_path:
-                self.engine.func_dict = func_dict
-                self.engine.best_path = best_path
+            if best_path:
+                # replace with reset data,
                 self.engine.init_df(input)
                 self.engine.process_funcs()
                 self.results[i] = self.engine.calculate(best_path)
@@ -65,7 +61,7 @@ class IterativeEngine:
                 self.engine.process_module(self.module)
                 self.results[i] = self.engine.calculate(best_path)
                 best_path = self.engine.best_path
-                func_dict = self.engine.func_dict
+                self.engine.build_best_path = False
 
             i += 1
 
@@ -78,8 +74,7 @@ class IterativeEngine:
 
         fst = self.results[0]
         columns = ['result_id']
-        for col in fst.keys():
-            columns.append(col)
+        columns.extend(fst.keys())
 
         return columns
 
@@ -93,18 +88,10 @@ class IterativeEngine:
 
         for i, result in self.results.items():
 
-            for t in result['t']:
-                d['result_id'].append(i)
+            d['result_id'].extend([i for t in result['t']])
 
             for col, xs in result.items():
-                for x in xs:
-                    d[col].append(x)
-
-        rows = []
-        columns = []
-        for c, r in d.items():
-            columns.append(c)
-            rows.append(r)
+                d[col].extend(xs)
 
         df = pd.DataFrame.from_dict(d, orient='columns')
         df = df.set_index(['result_id', 't'])
@@ -132,6 +119,7 @@ class Engine:
         self.results = {}
         self.__df_len__ = None
         self.best_path = []
+        self.build_best_path = True
 
     def init_df(self, input: dict = None) -> dict:
         """
@@ -168,6 +156,7 @@ class Engine:
             # Currently panda's NA is signal to the system that we need to calculate this value,
             # Or alternatively error out when no related function is defined when a value is requested.
             self.results[col] = [pd.NA for x in self.results['t']]
+
 
     def sorted_columns_by_cost(self):
         funcs = self.func_dict
@@ -232,7 +221,7 @@ class Engine:
                     # since we're lazy in figuring out what index is needed  
                     self.get_calc(t, col)
 
-        seconds_elapsed = int((time.time() - self.start_time) * 100) / 100
+        seconds_elapsed = int((time.time() - self.start_time) * 1000) / 1000
         if self.display_progressbar:
             print_progress_bar(100, 100, prefix='Progress:', suffix=f'Complete　 {seconds_elapsed} sec', length=50)
         return self.results
@@ -244,7 +233,8 @@ class Engine:
         For scaler values use t=0
 
         TODO: optimize this, for it is the bottleneck.
-        - move away from string checks4
+        - [x] move away from string checks4
+        - [ ] try and reduce the number of ifs per loop
         """
 
         # print('get_calc', col, t)
@@ -260,75 +250,74 @@ class Engine:
         if val is not pd.NA:
             return val
 
-        if col not in self.func_dict:
-            print(self.func_dict)
-            raise Exception('missing input or definition "' + col + '"')
-            print(f'missing input "{col}"')
-        else:
-            f = self.func_dict[col]
+        f = self.func_dict[col]
 
-            values = []
-            needs = f.needs(t)
-            has_t = False
-            for (pcol, pt, ptype) in needs:
 
-                if pcol == 't':
+        needs = f.needs(t)
+        # pre-populating list to avoid use of .append()
+        values = [None] * len(needs)
+        has_t = False
+        i = 0
+        for (pcol, pt, ptype) in needs:
 
-                    values.append(t)
-                    has_t = True
-                elif ptype == SCALER:
-                    v = self.get_calc(0, pcol)
-                    values.append(v)
-                elif ptype == FORWARD_REFERENCE_TIMESERIES:
-                    v = self.get_calc(pt + 1, pcol)
-                    values.append(list(self.results[pcol]))
-                elif ptype == BACK_REFERENCE_TIMESERIES:
-                    v = self.get_calc(pt - 1, pcol)
-                    values.append(self.results[pcol])
-                elif ptype == TIMESERIES:
-                    v = self.get_calc(pt, pcol)
-                    values.append(self.results[pcol])
-                else:
-                    print('should not happen')
-
-            if has_t:
-                value = f.fn(*values)
-                if col in watches:
-                    print('get_calc SET', col, values, '----', value)
-                self.results[col][t] = value
-                self.best_path.append((t, col))
+            if pcol == 't':
+                values[i] = t
+                has_t = True
+            elif ptype == SCALER:
+                v = self.get_calc(0, pcol)
+                values[i] = v
+            elif ptype == FORWARD_REFERENCE_TIMESERIES:
+                v = self.get_calc(pt + 1, pcol)
+                values[i] = list(self.results[pcol])
+            elif ptype == BACK_REFERENCE_TIMESERIES:
+                v = self.get_calc(pt - 1, pcol)
+                values[i] = self.results[pcol]
+            elif ptype == TIMESERIES:
+                v = self.get_calc(pt, pcol)
+                values[i] = self.results[pcol]
             else:
-                value = f.fn(*values)
-                if col in watches:
-                    print('get_calc SET', col, t, values, '----', value)
-                for i in self.results['t']:
-                    self.results[col][i] = value
+                print('should not happen')
+            i += 1
+
+        if has_t:
+            # print(f.identifier, values)
+            value = f.fn(*values)
+
+            self.results[col][t] = value
+            if self.build_best_path:
+                self.best_path.append((t, col))
+        else:
+            value = f.fn(*values)
+
+            for i in self.results['t']:
+                self.results[col][i] = value
+            if self.build_best_path:
                 self.best_path.append((0, col))
 
-            self.calc_count += 1
+        self.calc_count += 1
 
-            if not self.last_update_time:
-                self.last_update_time = time.time()
-            if (time.time() - self.last_update_time) > 1.0:
-                # This is a pretty expensive operation
-                # There is a noticable slowdown if checked at every 100th of a second
+        if not self.last_update_time:
+            self.last_update_time = time.time()
+        if (time.time() - self.last_update_time) > 1.0:
+            # This is a pretty expensive operation
+            # There is a noticeable slowdown if checked at every 100th of a second
 
-                completed = 0
-                for xs in self.results.values():
-                    for x in xs:
-                        if x is not pd.NA:
-                            completed += 1
+            completed = 0
+            for xs in self.results.values():
+                for x in xs:
+                    if x is not pd.NA:
+                        completed += 1
 
-                # print('completed', completed)
-                total = (len(self.results.keys()) - 1) * len(self.results['t'])
-                # print('total', total)
+            # print('completed', completed)
+            total = (len(self.results.keys()) - 1) * len(self.results['t'])
+            # print('total', total)
 
-                seconds_elapsed = int((time.time() - self.start_time) * 10) / 10
-                if self.display_progressbar:
-                    print_progress_bar(completed, total, prefix='Progress:', suffix=f'Complete　 {seconds_elapsed} sec', length=50)
-                self.last_update_time = time.time()
+            seconds_elapsed = int((time.time() - self.start_time) * 10) / 10
+            if self.display_progressbar:
+                print_progress_bar(completed, total, prefix='Progress:', suffix=f'Complete　 {seconds_elapsed} sec', length=50)
+            self.last_update_time = time.time()
 
-            return value
+        return value
 
 
 # lifted from: https://stackoverflow.com/questions/3173320/text-progress-bar-in-the-console
