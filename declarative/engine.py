@@ -199,7 +199,7 @@ class Engine:
             # The easiest way to do this is by letting one pass populate self.best_path,
             # then pass that back in for repeated runs.
             for (t, col) in best_path:
-                self.get_calc(t, col)
+                self.get_calc_no_recursion(t, col)
         else:
             # taking a calculated guess at a good path through our dependency graph
             # Guess is based on a cost function, which gets bigger the further down the chain the calls are.
@@ -225,6 +225,83 @@ class Engine:
         if self.display_progressbar:
             print_progress_bar(100, 100, prefix='Progress:', suffix=f'Complete　 {seconds_elapsed} sec', length=50)
         return self.results
+
+    def get_calc_no_recursion(self, t, col):
+        """
+        Recursively get all the values needed to perform this calculation, save result (memoization), and return
+
+        For scaler values use t=0
+
+        TODO: optimize this, for it is the bottleneck.
+        - [x] move away from string checks4
+        - [ ] try and reduce the number of ifs per loop
+        """
+
+        # print('get_calc', col, t)
+        # print(self.results)
+        if col == 't':
+            return t
+
+        if t < 0 or t >= self.t:
+            # expected to be handled within user functions
+            return 'time out of range'
+
+        val = self.results[col][t]
+        if val is not pd.NA:
+            return val
+
+        f = self.func_dict[col]
+
+
+        needs = f.needs(t)
+        # pre-populating list to avoid use of .append()
+        values = [None] * len(needs)
+        has_t = False
+        i = 0
+        for (pcol, pt, ptype) in needs:
+
+            if pcol == 't':
+                values[i] = t
+                has_t = True
+            elif ptype == SCALER:
+                values[i] = self.results[pcol][0]
+            else:
+                values[i] = self.results[pcol]
+            i += 1
+
+        if has_t:
+            # print(f.identifier, values)
+            value = f.fn(*values)
+
+            self.results[col][t] = value
+        else:
+            value = f.fn(*values)
+
+            for i in self.results['t']:
+                self.results[col][i] = value
+
+        if not self.last_update_time:
+            self.last_update_time = time.time()
+        if (time.time() - self.last_update_time) > 1.0:
+            # This is a pretty expensive operation
+            # There is a noticeable slowdown if checked at every 100th of a second
+
+            completed = 0
+            for xs in self.results.values():
+                for x in xs:
+                    if x is not pd.NA:
+                        completed += 1
+
+            # print('completed', completed)
+            total = (len(self.results.keys()) - 1) * len(self.results['t'])
+            # print('total', total)
+
+            seconds_elapsed = int((time.time() - self.start_time) * 10) / 10
+            if self.display_progressbar:
+                print_progress_bar(completed, total, prefix='Progress:', suffix=f'Complete　 {seconds_elapsed} sec', length=50)
+            self.last_update_time = time.time()
+
+        return value
 
     def get_calc(self, t, col):
         """

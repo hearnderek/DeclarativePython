@@ -60,25 +60,18 @@ def test_engine_init():
 def test_highlynested():
     func_dict = None
     best_path = None
+    engine = declarative.Engine(35 * 12)
     for n in range(10):
-        engine = declarative.Engine(5)
         engine.init_df()
         start = time()
         if func_dict:
-            engine.func_dict = func_dict
             engine.process_funcs()
+            df = engine.calculate(best_path)
         else:
             engine.process_module('highlynested')
             func_dict = engine.func_dict
-
-        process_time = time() - start
-
-        start = time()
-        df = engine.calculate(best_path)
-        best_path = engine.best_path
-        calc_time = time() - start
-        print(process_time, calc_time)
-        print(df)
+            df = engine.calculate(best_path)
+            best_path = engine.best_path
 
         for xs in df.values():
             for x in xs:
@@ -94,24 +87,19 @@ def test_highlynested_timeseries():
     print('HNTS')
     func_dict = None
     best_path = None
+    engine = declarative.Engine(35 * 12)
     for n in range(10):
-        engine = declarative.Engine(35 * 12)
         engine.init_df()
         start = time()
         if func_dict:
-            engine.func_dict = func_dict
             engine.process_funcs()
+            df = engine.calculate(best_path)
         else:
             engine.process_module('highlynested_timeseries')
             func_dict = engine.func_dict
-            
-        process_time = time() - start
+            df = engine.calculate(best_path)
+            best_path = engine.best_path
 
-        start = time()
-        df = engine.calculate(best_path)
-        best_path = engine.best_path
-        calc_time = time() - start
-        print(process_time, calc_time)
         # print(df)
         print(engine.get_calc(50, 'f49'))
 
