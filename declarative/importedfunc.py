@@ -22,7 +22,8 @@ class ImportedFunc:
         self.__param_types__ = None
         self.__is_cumulative__ = None
         self.steps = None
-        self.__needs__ = {}
+        self._needs = {}
+        self._needs_len = None
 
     def get_params(self):
         # gets all variables then only takes the first ones because they are always arguments
@@ -120,8 +121,8 @@ class ImportedFunc:
 
     def needs(self, t):
 
-        if t in self.__needs__:
-            return self.__needs__[t]
+        if t in self._needs:
+            return self._needs[t]
 
         typ = self.get_type()
         params = self.get_params()
@@ -144,7 +145,8 @@ class ImportedFunc:
             ls[i] = (param, needed_t, ptype)
             i += 1
 
-        self.__needs__[t] = ls
+        self._needs[t] = ls
+        self._needs_len = i
         return ls
 
     @staticmethod
@@ -156,7 +158,7 @@ class ImportedFunc:
         Then keep only the functions.
         ! HELPER FUNCTIONS:
             should not be declared within the module.
-        
+
             generally bad:
                 from mymodule import myfunction
                 myfunction(...)

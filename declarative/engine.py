@@ -4,7 +4,6 @@ import time
 from .importedfunc import ImportedFunc, FORWARD_REFERENCE_TIMESERIES, BACK_REFERENCE_TIMESERIES, SCALER, TIMESERIES
 from .graph import Graph
 
-
 """
 Need to determine my vocabulary
 
@@ -12,7 +11,7 @@ Need to determine my vocabulary
 Inforce File:
     row based input file.
     every row of input can be run in parallel
-    
+
 
 
 
@@ -26,8 +25,6 @@ def convert_list_to_tuple(ls):
 class IterativeEngine:
     def __init__(self, inputs: pd.DataFrame, module: str, t=1, display_progressbar=True):
         self.module = module
-
-
 
         # Convert dataframe into python dictionaries for faster iteration
         self.input_columns = list(inputs.columns)
@@ -105,7 +102,7 @@ class Engine:
     2. bring in accumulation columns
     3. multiprocess
         currently inorder to run through a 112k inforce file for 35 year with monthly time steps it will take
-        2 days to fully process. 
+        2 days to fully process.
         To get a 30 minute runtime, we would need to split the process across 90 CPUs. (ignoring join time)
     """
 
@@ -157,7 +154,6 @@ class Engine:
             # Or alternatively error out when no related function is defined when a value is requested.
             self.results[col] = [pd.NA for x in self.results['t']]
 
-
     def sorted_columns_by_cost(self):
         funcs = self.func_dict
         g = Graph(funcs, self.t)
@@ -183,7 +179,7 @@ class Engine:
             The majority of our time is spent within pandas calls, unsurprisingly, getting and setting values.
 
             It is quite possible that we would be better off with a different data-structure for this computation,
-            but then put our results back into pandas at the end. 
+            but then put our results back into pandas at the end.
 
             Another noticable bit is the pandas check isna. We might be better off using None instead for faster checks.
 
@@ -195,9 +191,9 @@ class Engine:
             print_progress_bar(0, 100, prefix='Progress:', suffix='Complete', length=50)
 
         if best_path is not None:
-            # The best pass is something the user can pass into to speed up the calculation.
-            # The easiest way to do this is by letting one pass populate self.best_path,
-            # then pass that back in for repeated runs.
+            # This is a 'perfect' pass through our dependency graph.
+            # Note: I'm sure there are edge cases which will break this
+            # each call to calculate will have all needed values available.
             for (t, col) in best_path:
                 self.get_calc_no_recursion(t, col)
         else:
@@ -214,11 +210,11 @@ class Engine:
                     #   we could switch from a depth first to bredth first passes to defend against this.
                     #   - use generators instead of recursion? pushing all of the first needed params onto
                     #     a stack and working through that?
-                    #     It would be ineffeciently passing through the graph, but it would give us more 
+                    #     It would be ineffeciently passing through the graph, but it would give us more
                     #     flexability in other areas of optimization. BUT, not worth it at thie point. KISS
                     #
                     # After an attempt to do bredth first pass, reverted back to this simple method.
-                    # since we're lazy in figuring out what index is needed  
+                    # since we're lazy in figuring out what index is needed
                     self.get_calc(t, col)
 
         seconds_elapsed = int((time.time() - self.start_time) * 1000) / 1000
@@ -228,34 +224,14 @@ class Engine:
 
     def get_calc_no_recursion(self, t, col):
         """
-        Recursively get all the values needed to perform this calculation, save result (memoization), and return
-
-        For scaler values use t=0
-
-        TODO: optimize this, for it is the bottleneck.
-        - [x] move away from string checks4
-        - [ ] try and reduce the number of ifs per loop
+        Running the calculation when all needed parameters have already been calculated
         """
-
-        # print('get_calc', col, t)
-        # print(self.results)
-        if col == 't':
-            return t
-
-        if t < 0 or t >= self.t:
-            # expected to be handled within user functions
-            return 'time out of range'
-
-        val = self.results[col][t]
-        if val is not pd.NA:
-            return val
 
         f = self.func_dict[col]
 
-
-        needs = f.needs(t)
+        needs = f._needs[t]
         # pre-populating list to avoid use of .append()
-        values = [None] * len(needs)
+        values = [None] * f._needs_len
         has_t = False
         i = 0
         for (pcol, pt, ptype) in needs:
@@ -269,37 +245,11 @@ class Engine:
                 values[i] = self.results[pcol]
             i += 1
 
+        value = f.fn(*values)
         if has_t:
-            # print(f.identifier, values)
-            value = f.fn(*values)
-
             self.results[col][t] = value
         else:
-            value = f.fn(*values)
-
-            for i in self.results['t']:
-                self.results[col][i] = value
-
-        if not self.last_update_time:
-            self.last_update_time = time.time()
-        if (time.time() - self.last_update_time) > 1.0:
-            # This is a pretty expensive operation
-            # There is a noticeable slowdown if checked at every 100th of a second
-
-            completed = 0
-            for xs in self.results.values():
-                for x in xs:
-                    if x is not pd.NA:
-                        completed += 1
-
-            # print('completed', completed)
-            total = (len(self.results.keys()) - 1) * len(self.results['t'])
-            # print('total', total)
-
-            seconds_elapsed = int((time.time() - self.start_time) * 10) / 10
-            if self.display_progressbar:
-                print_progress_bar(completed, total, prefix='Progress:', suffix=f'Complete　 {seconds_elapsed} sec', length=50)
-            self.last_update_time = time.time()
+            self.results[col] = [value] * self.t
 
         return value
 
@@ -308,10 +258,6 @@ class Engine:
         Recursively get all the values needed to perform this calculation, save result (memoization), and return
 
         For scaler values use t=0
-
-        TODO: optimize this, for it is the bottleneck.
-        - [x] move away from string checks4
-        - [ ] try and reduce the number of ifs per loop
         """
 
         # print('get_calc', col, t)
@@ -328,7 +274,6 @@ class Engine:
             return val
 
         f = self.func_dict[col]
-
 
         needs = f.needs(t)
         # pre-populating list to avoid use of .append()
@@ -391,7 +336,8 @@ class Engine:
 
             seconds_elapsed = int((time.time() - self.start_time) * 10) / 10
             if self.display_progressbar:
-                print_progress_bar(completed, total, prefix='Progress:', suffix=f'Complete　 {seconds_elapsed} sec', length=50)
+                print_progress_bar(completed, total, prefix='Progress:', suffix=f'Complete　 {seconds_elapsed} sec',
+                                   length=50)
             self.last_update_time = time.time()
 
         return value
