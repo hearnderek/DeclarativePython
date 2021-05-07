@@ -1,7 +1,9 @@
 import pandas as pd
 import numpy as np
+import multiprocessing
+import copy
 import time
-from .importedfunc import ImportedFunc, FORWARD_REFERENCE_TIMESERIES, BACK_REFERENCE_TIMESERIES, SCALER, TIMESERIES
+from .importedfunc import ImportedFunc, FORWARD_REFERENCE_TIMESERIES, BACK_REFERENCE_TIMESERIES, SCALER, TIMESERIES, T
 from .graph import Graph
 
 """
@@ -16,10 +18,6 @@ Inforce File:
 
 
 """
-
-
-def convert_list_to_tuple(ls):
-    return tuple(x for x in ls)
 
 
 class IterativeEngine:
@@ -45,8 +43,51 @@ class IterativeEngine:
         self.engine = Engine(t, display_progressbar=display_progressbar)
 
     def calculate(self, processors=1):
-        best_path = None
+        """ Will use max processors unless told otherwise """
+        if processors is None:
+            processors = max(1, int(multiprocessing.cpu_count() / 2))
+        if processors == 1:
+            i = 0
+            best_path = None
+            for input in self.input_rows:
+                if best_path:
+                    # replace with reset data,
+                    self.engine.init_df(input)
+                    self.engine.process_funcs()
+                    self.results[i] = self.engine.calculate(best_path)
+                else:
+                    self.engine.init_df(input)
+                    self.engine.process_module(self.module)
+                    self.results[i] = self.engine.calculate(best_path)
+                    best_path = self.engine.best_path
+                    self.engine.build_best_path = False
+                i += 1
+                # print(gc.get_count())
+        else:
+            # TODO:
+            #   - if cannot divide evenly rows at the end will be missed.
+            #   - Results are completely lost.
+            #   - Memory hog, Need to offload results to disk.
+            jobs = [None] * processors
+            n = int(len(self.input_rows) / processors)
+
+            # one group per processor
+            # count up to len() by n, make each step a group
+            splits = [self.input_rows[i:i + n] for i in range(0, len(self.input_rows), n)]
+            for i in range(processors):
+                newself = copy.deepcopy(self)
+                newself.input_rows = splits[i]
+                jobs[i] = multiprocessing.Process(target=newself.calculate_subset)
+                jobs[i].start()
+
+            for job in jobs:
+                job.join()
+
+            raise Exception('Finished!')
+
+    def calculate_subset(self):
         i = 0
+        best_path = None
         for input in self.input_rows:
             if best_path:
                 # replace with reset data,
@@ -59,8 +100,9 @@ class IterativeEngine:
                 self.results[i] = self.engine.calculate(best_path)
                 best_path = self.engine.best_path
                 self.engine.build_best_path = False
-
             i += 1
+
+        print(self.results_to_df())
 
     def df_columns(self):
         """
@@ -187,15 +229,16 @@ class Engine:
 
         self.start_time = time.time()
         self.last_update_time = time.time()
-        if self.display_progressbar:
-            print_progress_bar(0, 100, prefix='Progress:', suffix='Complete', length=50)
+        # if self.display_progressbar:
+        #     print_progress_bar(0, 100, prefix='Progress:', suffix='Complete', length=50)
 
         if best_path is not None:
             # This is a 'perfect' pass through our dependency graph.
             # Note: I'm sure there are edge cases which will break this
             # each call to calculate will have all needed values available.
-            for (t, col) in best_path:
-                self.get_calc_no_recursion(t, col)
+            self.optimized_calculate(best_path)
+            # for (t, col) in best_path:
+            #     self.get_calc_no_recursion(t, col)
         else:
             # taking a calculated guess at a good path through our dependency graph
             # Guess is based on a cost function, which gets bigger the further down the chain the calls are.
@@ -222,36 +265,31 @@ class Engine:
             print_progress_bar(100, 100, prefix='Progress:', suffix=f'Complete　 {seconds_elapsed} sec', length=50)
         return self.results
 
-    def get_calc_no_recursion(self, t, col):
-        """
-        Running the calculation when all needed parameters have already been calculated
-        """
+    # @profile
+    def optimized_calculate(self, best_path):
+        buffer = [None] * 256
+        # gc.disable()
+        for (t, col) in best_path:
+            f = self.func_dict[col]
 
-        f = self.func_dict[col]
+            # pre-populating list to avoid use of .append()
+            i = 0
+            for (pcol, ptype) in f._needs_s[t]:
 
-        needs = f._needs[t]
-        # pre-populating list to avoid use of .append()
-        values = [None] * f._needs_len
-        has_t = False
-        i = 0
-        for (pcol, pt, ptype) in needs:
+                if ptype > SCALER:
+                    buffer[i] = self.results[pcol]
+                elif ptype == SCALER:
+                    buffer[i] = self.results[pcol][0]
+                else:  # ptype == T
+                    buffer[i] = t
 
-            if pcol == 't':
-                values[i] = t
-                has_t = True
-            elif ptype == SCALER:
-                values[i] = self.results[pcol][0]
+                i += 1
+
+            value = f.fn(*buffer[0:i])
+            if f._has_t:
+                self.results[col][t] = value
             else:
-                values[i] = self.results[pcol]
-            i += 1
-
-        value = f.fn(*values)
-        if has_t:
-            self.results[col][t] = value
-        else:
-            self.results[col] = [value] * self.t
-
-        return value
+                self.results[col] = [value] * self.t
 
     def get_calc(self, t, col):
         """

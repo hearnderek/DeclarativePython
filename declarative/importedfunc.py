@@ -1,10 +1,17 @@
 import re
 import inspect
 
+T = -1
 SCALER = 0
 TIMESERIES = 1
 FORWARD_REFERENCE_TIMESERIES = 2
 BACK_REFERENCE_TIMESERIES = 3
+
+
+class FastTupe:
+    def __init__(self, pcol, ptype):
+        self.pcol = pcol
+        self.ptype = ptype
 
 
 class ImportedFunc:
@@ -23,7 +30,9 @@ class ImportedFunc:
         self.__is_cumulative__ = None
         self.steps = None
         self._needs = {}
+        self._needs_s = {}
         self._needs_len = None
+        self._has_t = False
 
     def get_params(self):
         # gets all variables then only takes the first ones because they are always arguments
@@ -135,7 +144,11 @@ class ImportedFunc:
         i = 0
         for param, ptype in ptypes:
             needed_t = 0
-            if ptype == FORWARD_REFERENCE_TIMESERIES:
+            if param is 't':
+                needed_t = None
+                ptype = T
+                self._has_t = True
+            elif ptype == FORWARD_REFERENCE_TIMESERIES:
                 needed_t = t + 1
             elif ptype == BACK_REFERENCE_TIMESERIES:
                 needed_t = t - 1
@@ -146,6 +159,7 @@ class ImportedFunc:
             i += 1
 
         self._needs[t] = ls
+        self._needs_s[t] = [(a, c) for (a, b, c) in ls]
         self._needs_len = i
         return ls
 
