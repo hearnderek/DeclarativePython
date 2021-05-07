@@ -1,10 +1,11 @@
 import pandas as pd
 import numpy as np
-import multiprocessing
-import copy
+
+
 import time
 from .importedfunc import ImportedFunc, FORWARD_REFERENCE_TIMESERIES, BACK_REFERENCE_TIMESERIES, SCALER, TIMESERIES, T
 from .graph import Graph
+from .progress_bar import print_progress_bar
 
 """
 Need to determine my vocabulary
@@ -13,128 +14,7 @@ Need to determine my vocabulary
 Inforce File:
     row based input file.
     every row of input can be run in parallel
-
-
-
-
 """
-
-
-class IterativeEngine:
-    def __init__(self, inputs: pd.DataFrame, module: str, t=1, display_progressbar=True):
-        self.module = module
-
-        # Convert dataframe into python dictionaries for faster iteration
-        self.input_columns = list(inputs.columns)
-        rows = len(inputs)
-        self.input_rows = []
-
-        d = {}
-        for col in self.input_columns:
-            d[col] = list(inputs[col])
-
-        for i in range(rows):
-            rd = {}
-            for col in self.input_columns:
-                rd[col] = [d[col][i]]
-            self.input_rows.append(rd)
-
-        self.results = {}
-        self.engine = Engine(t, display_progressbar=display_progressbar)
-
-    def calculate(self, processors=1):
-        """ Will use max processors unless told otherwise """
-        if processors is None:
-            processors = max(1, int(multiprocessing.cpu_count() / 2))
-        if processors == 1:
-            i = 0
-            best_path = None
-            for input in self.input_rows:
-                if best_path:
-                    # replace with reset data,
-                    self.engine.init_df(input)
-                    self.engine.process_funcs()
-                    self.results[i] = self.engine.calculate(best_path)
-                else:
-                    self.engine.init_df(input)
-                    self.engine.process_module(self.module)
-                    self.results[i] = self.engine.calculate(best_path)
-                    best_path = self.engine.best_path
-                    self.engine.build_best_path = False
-                i += 1
-                # print(gc.get_count())
-        else:
-            # TODO:
-            #   - if cannot divide evenly rows at the end will be missed.
-            #   - Results are completely lost.
-            #   - Memory hog, Need to offload results to disk.
-            jobs = [None] * processors
-            n = int(len(self.input_rows) / processors)
-
-            # one group per processor
-            # count up to len() by n, make each step a group
-            splits = [self.input_rows[i:i + n] for i in range(0, len(self.input_rows), n)]
-            for i in range(processors):
-                newself = copy.deepcopy(self)
-                newself.input_rows = splits[i]
-                jobs[i] = multiprocessing.Process(target=newself.calculate_subset)
-                jobs[i].start()
-
-            for job in jobs:
-                job.join()
-
-            raise Exception('Finished!')
-
-    def calculate_subset(self):
-        i = 0
-        best_path = None
-        for input in self.input_rows:
-            if best_path:
-                # replace with reset data,
-                self.engine.init_df(input)
-                self.engine.process_funcs()
-                self.results[i] = self.engine.calculate(best_path)
-            else:
-                self.engine.init_df(input)
-                self.engine.process_module(self.module)
-                self.results[i] = self.engine.calculate(best_path)
-                best_path = self.engine.best_path
-                self.engine.build_best_path = False
-            i += 1
-
-        print(self.results_to_df())
-
-    def df_columns(self):
-        """
-        Generates the columns for our results to be put into a pandas' dataframe
-        """
-        if not self.results:
-            return []
-
-        fst = self.results[0]
-        columns = ['result_id']
-        columns.extend(fst.keys())
-
-        return columns
-
-    def results_to_df(self):
-        """
-        Put all calculated results into a pandas' dataframe.
-        result_id and t will serve as our two indexes.
-        """
-        df_columns = self.df_columns()
-        d = dict([(col, []) for col in df_columns])
-
-        for i, result in self.results.items():
-
-            d['result_id'].extend([i for t in result['t']])
-
-            for col, xs in result.items():
-                d[col].extend(xs)
-
-        df = pd.DataFrame.from_dict(d, orient='columns')
-        df = df.set_index(['result_id', 't'])
-        return df
 
 
 class Engine:
@@ -197,6 +77,8 @@ class Engine:
             self.results[col] = [pd.NA for x in self.results['t']]
 
     def sorted_columns_by_cost(self):
+        """ Sorting the columns greatly reduces recursive calls of get_calc """
+
         funcs = self.func_dict
         g = Graph(funcs, self.t)
 
@@ -205,9 +87,7 @@ class Engine:
         return sorted_cost_cols
 
     def process_module(self, module: str):
-        """
-        Load in all of a file's functions into the engine.
-        """
+        """ Load in all of a file's functions into the engine. """
         funcs = ImportedFunc.get_functions(module)
         self.func_dict = dict([(f.identifier, f) for f in funcs])
         self.process_funcs()
@@ -262,7 +142,7 @@ class Engine:
 
         seconds_elapsed = int((time.time() - self.start_time) * 1000) / 1000
         if self.display_progressbar:
-            print_progress_bar(100, 100, prefix='Progress:', suffix=f'Complete　 {seconds_elapsed} sec', length=50)
+            print_progress_bar(100, 100, prefix='Progress:', suffix=f'Complete {seconds_elapsed} sec', length=50)
         return self.results
 
     # @profile
@@ -380,28 +260,3 @@ class Engine:
 
         return value
 
-
-# lifted from: https://stackoverflow.com/questions/3173320/text-progress-bar-in-the-console
-# Thank you Stack Overflow user Greenstick
-def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, length=100, fill='=', printEnd="\r"):
-    """
-    Call in a loop to create terminal progress bar
-    @params:
-        iteration   - Required  : current iteration (Int)
-        total       - Required  : total iterations (Int)
-        prefix      - Optional  : prefix string (Str)
-        suffix      - Optional  : suffix string (Str)
-        decimals    - Optional  : positive number of decimals in percent complete (Int)
-        length      - Optional  : character length of bar (Int)
-        fill        - Optional  : bar fill character (Str)
-        printEnd    - Optional  : end character (e.g. "\r", "\r\n") (Str)
-    """
-
-    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
-    filledLength = int(length * iteration // total)
-    bar = fill * filledLength + ' ' * (length - filledLength)
-    print(f'\r{prefix} |{bar}| {percent}% {suffix}', end=printEnd)
-    # Print New Line on Complete
-    if iteration == total:
-        print()
-    pass
