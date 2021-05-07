@@ -65,10 +65,8 @@ class IterativeEngine:
             jobs = [None] * processors
             n = int(len(self.input_rows) / processors)
 
-            # one group per processor
-            # count up to len() by n, make each step a group
-            splits = [self.input_rows[i:i + n] for i in range(0, len(self.input_rows), n)]
-            dbs = [ f'{self.module}{i}.sqlite' for i in range(len(splits))]
+            splits = split_list(self.input_rows, processors)
+            dbs = [f'{self.module}{i}.sqlite' for i in range(len(splits))]
             for i in range(processors):
                 newself = copy.deepcopy(self)
                 newself.input_rows = splits[i]
@@ -157,3 +155,11 @@ class IterativeEngine:
         df = pd.DataFrame.from_dict(d, orient='columns')
         df = df.set_index(['result_id', 't'])
         return df
+
+
+def split_list(xs: 'list', chunks: int):
+    length = len(xs)
+    len_over_chunks = length / chunks
+    return [xs[int(len_over_chunks * i) : int(len_over_chunks * (i+1))] for i in range(chunks)]
+
+
