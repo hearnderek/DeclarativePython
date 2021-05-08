@@ -31,12 +31,20 @@ def cash(t, initial_cash, cash, sales, fixed_expenses):
 
 
 if __name__ == '__main__':
-
+    import pandas as pd
+    import numpy as np
+    timesteps = 35 * 12
     repeat = 1000
     df = pd.DataFrame([[100, 17, 0.99, 0]], columns=['initial_cash', 'fixed_expenses', 'sales_price', 'cost_per_sale'])
     df = pd.DataFrame(np.repeat(df.values, repeat, axis=0), columns=df.columns)
     declarative.turn_off_progress_bar = True
-    ie = declarative.IterativeEngine(df, 'to_profile', 35 * 12, True)
+    ie = declarative.IterativeEngine(df, 'to_profile', timesteps, True)
     ie.calculate(None)
 
-    print(ie.results_to_df())
+    df = ie.results_to_df()
+    print(df)
+    for xs in df.values:
+        for x in xs:
+            assert x is not pd.NA
+    assert len(df) == timesteps * repeat
+
