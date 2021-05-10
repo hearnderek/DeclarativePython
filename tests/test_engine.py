@@ -1,3 +1,7 @@
+"""
+Testing engine.py without the assistance of iterative_engine
+"""
+
 import pandas as pd
 import numpy as np
 import context
@@ -87,7 +91,8 @@ def test_highlynested_timeseries():
     print('HNTS')
     func_dict = None
     best_path = None
-    engine = declarative.Engine(35 * 12)
+    timesteps = 35 * 12
+    engine = declarative.Engine(timesteps)
     for n in range(10):
         engine.init_df()
         start = time()
@@ -97,12 +102,14 @@ def test_highlynested_timeseries():
         else:
             engine.process_module('highlynested_timeseries')
             func_dict = engine.func_dict
-            df = engine.calculate(best_path)
+            d = engine.calculate(best_path)
             best_path = engine.best_path
 
         # print(df)
         print(engine.get_calc(50, 'f49'))
 
-        for xs in df.values():
+        for xs in d.values():
             for x in xs:
                 assert x is not pd.NA
+
+    assert len(d['t']) == timesteps
