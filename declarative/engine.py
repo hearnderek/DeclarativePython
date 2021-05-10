@@ -207,10 +207,10 @@ class Engine:
                 v = self.get_calc(0, pcol)
                 values[i] = v
             elif ptype == FORWARD_REFERENCE_TIMESERIES:
-                v = self.get_calc(pt + 1, pcol)
+                v = self.get_calc(pt, pcol)
                 values[i] = list(self.results[pcol])
             elif ptype == BACK_REFERENCE_TIMESERIES:
-                v = self.get_calc(pt - 1, pcol)
+                v = self.get_calc(pt, pcol)
                 values[i] = self.results[pcol]
             elif ptype == TIMESERIES:
                 v = self.get_calc(pt, pcol)
