@@ -26,6 +26,7 @@ def monthly_debt_payment(t, initial_monthly_debt_payment, monthly_debt_payment, 
         return max(0, min(monthly_debt_payment[t-1], debt[t-1]))
 
 def monthly_debt_interest(t, debt_interest_rate, debt, monthly_debt_payment):
+    """ Using continuously compounding interest """
     if t == 0:
         return 0.0
     if debt[t-1] - monthly_debt_payment[t-1] <= 0.0:
