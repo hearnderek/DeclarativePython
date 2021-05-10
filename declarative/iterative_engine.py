@@ -5,6 +5,7 @@ from .engine import Engine
 import copy
 import os
 from sqlalchemy import create_engine
+import importlib
 
 
 class IterativeEngine:
@@ -14,8 +15,10 @@ class IterativeEngine:
     If
     """
     def __init__(self, inputs: pd.DataFrame, module: str, t=1, display_progressbar=True):
+        loader = importlib.util.find_spec(module)
+        if loader is None:
+            raise ModuleNotFoundError(module)
         self.module = module
-
         # Convert dataframe into python dictionaries for faster iteration
         self.input_columns = list(inputs.columns)
         rows = len(inputs)
@@ -40,7 +43,7 @@ class IterativeEngine:
         """ Will use max processors unless told otherwise """
         if processors is None:
             processors = max(1, int(multiprocessing.cpu_count() / 2))
-        if processors == 1:
+        if processors == 1 or len(self.input_rows) == 1:
             i = 0
             best_path = None
             for input in self.input_rows:
