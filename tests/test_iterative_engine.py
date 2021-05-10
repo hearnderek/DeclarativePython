@@ -88,3 +88,33 @@ def test_parallel_runs_unneeded2():
         for x in xs:
             assert x is not pd.NA
     assert len(df) == timesteps
+
+
+def test_parallel_runs_extra_processers():
+    timesteps = 5 * 12
+    d = {
+        'initial_account_balance': [1200, 1000],
+        'initial_salary': [65000, 65000],
+        'initial_yearly_expenses': [40000, 40000],
+        'initial_investments': [0, 0],
+        'average_market_growth': [0.06, 0.06],
+        'initial_debt': [30000, 30000],
+        'debt_interest_rate': [0.0376, 0.0376],
+        'initial_monthly_debt_payment': [600, 600],
+        'initial_year': [2013, 2013],
+        'initial_month': [3, 3]
+    }
+    df = pd.DataFrame(d)
+    declarative.turn_off_progress_bar = True
+    ie = declarative.IterativeEngine(df, 'home_economics', timesteps, True)
+
+    # giving more processers than needed
+    ie.calculate(processors=4)
+
+    df = ie.results_to_df()
+    print(df[list(ie.engine.func_dict.keys())])
+    print(df[list([key for key in ie.engine.func_dict.keys() if 'debt' in key])])
+    for xs in df.values:
+        for x in xs:
+            assert x is not pd.NA
+    assert len(df) == timesteps
