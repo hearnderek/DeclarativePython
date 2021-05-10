@@ -18,18 +18,17 @@ def investment_growth(t, investments):
         return investments[t-1] * monthly_investment_growth
 
 def investments(t, initial_investments, investments, new_investments, investment_growth):
-
     if t == 0:
         return initial_investments
     else:
         return investments[t-1] + investment_growth + new_investments
 
-def new_investments(t, monthly_salary, income):
+def new_investments(t, income, expenses):
     """ 
     going with an oversimplifed investment model where 10% of salary is invested into an index fund.
     This magic index fund always gains 5% value in a year
     """
-    return min(monthly_salary[t] * 0.1, income[t] * 0.1, income[t])
+    return max(0, min(income[t] * 0.1, income[t]-expenses[t]))
 
 
 def expenses(t, initial_yearly_expenses, expenses):
