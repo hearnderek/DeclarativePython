@@ -90,7 +90,7 @@ def test_parallel_runs_unneeded2():
     assert len(df) == timesteps
 
 
-def test_parallel_runs_extra_processers():
+def test_parallel_runs_extra_processors():
     timesteps = 5 * 12
     d = {
         'initial_account_balance': [1200, 1000],
@@ -112,9 +112,8 @@ def test_parallel_runs_extra_processers():
     ie.calculate(processors=4)
 
     df = ie.results_to_df()
-    print(df[list(ie.engine.func_dict.keys())])
-    print(df[list([key for key in ie.engine.func_dict.keys() if 'debt' in key])])
+    print(df)
     for xs in df.values:
         for x in xs:
             assert x is not pd.NA
-    assert len(df) == timesteps
+    assert len(df) == timesteps * len(d['initial_debt'])

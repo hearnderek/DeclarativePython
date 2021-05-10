@@ -65,12 +65,14 @@ class IterativeEngine:
             #   - if cannot divide evenly rows at the end will be missed.
             #   - Results are completely lost.
             #   - Memory hog, Need to offload results to disk.
-            jobs = [None] * processors
+
             n = int(len(self.input_rows) / processors)
 
             splits = split_list(self.input_rows, processors)
-            dbs = [f'{self.module}{i}.sqlite' for i in range(len(splits))]
-            for i in range(processors):
+            num_splits = len(splits)
+            jobs = [None] * num_splits
+            dbs = [f'{self.module}{i}.sqlite' for i in range(num_splits)]
+            for i in range(num_splits):
                 newself = copy.deepcopy(self)
                 newself.input_rows = splits[i]
                 jobs[i] = multiprocessing.Process(target=newself.calculate_subset, args=(dbs[i], f'{self.module}{i}'))
@@ -160,9 +162,12 @@ class IterativeEngine:
         return df
 
 
-def split_list(xs: 'list', chunks: int):
+def split_list(xs: 'list', chunks: int) -> 'list':
+
     length = len(xs)
     len_over_chunks = length / chunks
-    return [xs[int(len_over_chunks * i) : int(len_over_chunks * (i+1))] for i in range(chunks)]
+    splits = [xs[int(len_over_chunks * i) : int(len_over_chunks * (i+1))] for i in range(chunks)]
+    splits = [split for split in splits if len(split) > 0]
+    return splits
 
 
