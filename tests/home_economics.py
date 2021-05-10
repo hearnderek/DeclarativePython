@@ -45,14 +45,17 @@ def investments(t, initial_investments, investments, new_investments, investment
     if t == 0:
         return initial_investments
     else:
-        return investments[t-1] + investment_growth + new_investments
+        return investments[t-1] + investment_growth[t] + new_investments[t]
 
 def new_investments(t, income, expenses):
     """ 
     going with an oversimplifed investment model where 10% of salary is invested into an index fund.
     This magic index fund always gains 5% value in a year
     """
-    return max(0, min(income[t] * 0.1, income[t]-expenses[t]))
+    if t == 0:
+        return 0.0
+    else:
+        return max(0, min(income[t] * 0.1, income[t]-expenses[t]))
 
 
 def expenses(t, initial_yearly_expenses, expenses, monthly_debt_payment):
@@ -62,11 +65,17 @@ def expenses(t, initial_yearly_expenses, expenses, monthly_debt_payment):
         fixed_expenses = expenses[t-1] - monthly_debt_payment[t-1]
         return fixed_expenses * (1 + 0.02 / 12) + monthly_debt_payment[t]
 
-def income(t, monthly_salary, bonus):
-    return monthly_salary[t] + bonus[t]
+def income(t, monthly_salary_post_tax, bonus):
+    return monthly_salary_post_tax[t] + bonus[t]
+
+def monthly_salary_post_tax(t, monthly_salary, monthly_income_tax):
+    return monthly_salary[t] - monthly_income_tax[t]
 
 def monthly_salary(t, yearly_salary):
     return yearly_salary[t] / 12
+
+def monthly_income_tax(t, monthly_salary, simplified_income_tax_rate):
+    return monthly_salary[t] * simplified_income_tax_rate
 
 def yearly_salary(t, initial_salary, yearly_salary, salary_increase):
     if t == 0:
@@ -84,16 +93,16 @@ def year(t, initial_year, initial_month):
     if t == 0:
         return initial_year
     else:
-        years = int((initial_month + t - 1) / 12)
+        years = int((initial_month + t) / 12)
         return initial_year + years
 
 def month(t, initial_month):
-    return (t + initial_month) % 13
+    return (t + initial_month) % 12 + 1
 
 
-def bonus(t, yearly_salary, month):
+def bonus(t, yearly_salary, month, simplified_income_tax_rate):
     if month[t] == 12:
-        return yearly_salary[t] * 0.10
+        return yearly_salary[t] * 0.10 * (1 - simplified_income_tax_rate)
     else:
         return 0.0
 
@@ -113,6 +122,7 @@ if __name__ == '__main__':
         'initial_debt': [30000],
         'debt_interest_rate': [0.0376],
         'initial_monthly_debt_payment': [600],
+        'simplified_income_tax_rate': [0.25],
         'initial_year': [2013],
         'initial_month': [3]
     }
@@ -124,6 +134,7 @@ if __name__ == '__main__':
     df = ie.results_to_df()
     print(df[list(ie.engine.func_dict.keys())])
     print(df[list([key for key in ie.engine.func_dict.keys() if 'debt' in key])])
+    print(df[list([key for key in ie.engine.func_dict.keys() if 'inv' in key])])
     for xs in df.values:
         for x in xs:
             assert x is not pd.NA
