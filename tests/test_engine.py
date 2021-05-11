@@ -18,9 +18,7 @@ def test1():
     print(d)
     df = d
 
-    run = declarative.Engine(15)
-    run.init_df(df)
-    run.process_module('declarative_funcs')
+    run = declarative.Engine(15, input=d, module='declarative_funcs')
     df = run.results
 
     print(df)
@@ -38,22 +36,16 @@ def test1():
 
 def test_engine_init():
     engine = declarative.Engine(5)
-    engine.init_df()
-    engine.process_module('highlynested')
+
+    engine.initialize(module='highlynested')
     df = engine.calculate()
-    best_path = engine.best_path
-    func_dict = engine.func_dict
 
     for xs in df.values():
         for x in xs:
             assert x is not pd.NA
     assert len(df['t']) == 5
 
-    engine2 = declarative.Engine(5)
-    engine2.init_df()
-    engine2.func_dict = func_dict
-    engine2.best_path = best_path
-    engine2.process_funcs()
+    engine.initialize(module='highlynested')
     df = engine.calculate()
 
     for xs in df.values():
@@ -62,50 +54,29 @@ def test_engine_init():
     assert len(df['t']) == 5
 
 def test_highlynested():
-    func_dict = None
-    best_path = None
     engine = declarative.Engine(35 * 12)
     for n in range(10):
-        engine.init_df()
-        start = time()
-        if func_dict:
-            engine.process_funcs()
-            df = engine.calculate(best_path)
-        else:
-            engine.process_module('highlynested')
-            func_dict = engine.func_dict
-            df = engine.calculate(best_path)
-            best_path = engine.best_path
+        engine.initialize(module='highlynested')
+        d = engine.calculate()
 
-        for xs in df.values():
+        for xs in d.values():
             for x in xs:
                 assert x is not pd.NA
 
 def test_get_no_calculate():
     engine = declarative.Engine()
-    engine.init_df()
-    engine.process_module('highlynested')
-    print(engine.get_calc(0, 'f49'))
+    engine.initialize(module='highlynested')
+    x = engine.get_calc(0, 'f49')
+    assert x is not pd.NA
 
 def test_highlynested_timeseries():
     print('HNTS')
-    func_dict = None
-    best_path = None
     timesteps = 35 * 12
     engine = declarative.Engine(timesteps)
     for n in range(10):
-        engine.init_df()
-        start = time()
-        if func_dict:
-            engine.process_funcs()
-            df = engine.calculate(best_path)
-        else:
-            engine.process_module('highlynested_timeseries')
-            func_dict = engine.func_dict
-            d = engine.calculate(best_path)
-            best_path = engine.best_path
+        engine.initialize(module='highlynested_timeseries')
+        d = engine.calculate()
 
-        # print(df)
         print(engine.get_calc(50, 'f49'))
 
         for xs in d.values():

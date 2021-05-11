@@ -33,10 +33,15 @@ class ImportedFunc:
         self._needs_s = {}
         self._needs_len = None
         self._has_t = False
+        self._params = []
 
     def get_params(self):
+        if self._params:
+            return self._params
+
         # gets all variables then only takes the first ones because they are always arguments
-        return self.fn.__code__.co_varnames[0:self.fn.__code__.co_argcount]
+        self._params = self.fn.__code__.co_varnames[0:self.fn.__code__.co_argcount]
+        return self._params
 
     def get_code(self):
         return inspect.getsource(self.fn)

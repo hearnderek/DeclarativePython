@@ -45,19 +45,9 @@ class IterativeEngine:
             processors = max(1, int(multiprocessing.cpu_count() / 2))
         if processors == 1 or len(self.input_rows) == 1:
             i = 0
-            best_path = None
             for input in self.input_rows:
-                if best_path:
-                    # replace with reset data,
-                    self.engine.init_df(input)
-                    self.engine.process_funcs()
-                    self.results[i] = self.engine.calculate(best_path)
-                else:
-                    self.engine.init_df(input)
-                    self.engine.process_module(self.module)
-                    self.results[i] = self.engine.calculate(best_path)
-                    best_path = self.engine.best_path
-                    self.engine.build_best_path = False
+                self.engine.initialize(input, self.module)
+                self.results[i] = self.engine.calculate()
                 i += 1
                 # print(gc.get_count())
         else:
@@ -102,19 +92,9 @@ class IterativeEngine:
 
     def calculate_subset(self, dbname='db.sqlite', table=None):
         i = 0
-        best_path = None
         for input in self.input_rows:
-            if best_path:
-                # replace with reset data,
-                self.engine.init_df(input)
-                self.engine.process_funcs()
-                self.results[i] = self.engine.calculate(best_path)
-            else:
-                self.engine.init_df(input)
-                self.engine.process_module(self.module)
-                self.results[i] = self.engine.calculate(best_path)
-                best_path = self.engine.best_path
-                self.engine.build_best_path = False
+            self.engine.initialize(input, self.module)
+            self.results[i] = self.engine.calculate()
             i += 1
 
         df = self.results_to_df()
