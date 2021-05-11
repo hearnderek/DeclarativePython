@@ -15,6 +15,7 @@ def test_missing_file():
         'initial_debt': [30000],
         'debt_interest_rate': [0.0376],
         'initial_monthly_debt_payment': [600],
+        'simplified_income_tax_rate': [0.25],
         'initial_year': [2013],
         'initial_month': [3]
     }
@@ -42,6 +43,7 @@ def test_parallel_runs_unneeded1():
         'initial_debt': [30000],
         'debt_interest_rate': [0.0376],
         'initial_monthly_debt_payment': [600],
+        'simplified_income_tax_rate': [0.25],
         'initial_year': [2013],
         'initial_month': [3]
     }
@@ -71,6 +73,7 @@ def test_parallel_runs_unneeded2():
         'initial_debt': [30000],
         'debt_interest_rate': [0.0376],
         'initial_monthly_debt_payment': [600],
+        'simplified_income_tax_rate': [0.25],
         'initial_year': [2013],
         'initial_month': [3]
     }
@@ -101,6 +104,7 @@ def test_parallel_runs_extra_processors():
         'initial_debt': [30000, 30000],
         'debt_interest_rate': [0.0376, 0.0376],
         'initial_monthly_debt_payment': [600, 600],
+        'simplified_income_tax_rate': [0.25, 0.25],
         'initial_year': [2013, 2013],
         'initial_month': [3, 3]
     }

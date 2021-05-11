@@ -35,7 +35,9 @@ if __name__ == '__main__':
     import numpy as np
     timesteps = 35 * 12
     repeat = 1000
-    df = pd.DataFrame([[100, 17, 0.99, 0]], columns=['initial_cash', 'fixed_expenses', 'sales_price', 'cost_per_sale'])
+    df = pd.DataFrame(
+        [[100, 17, 0.99, 0]],
+        columns=['initial_cash', 'fixed_expenses', 'sales_price', 'cost_per_sale'])
     df = pd.DataFrame(np.repeat(df.values, repeat, axis=0), columns=df.columns)
     declarative.turn_off_progress_bar = True
     ie = declarative.IterativeEngine(df, 'to_profile', timesteps, True)
