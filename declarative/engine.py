@@ -166,6 +166,7 @@ class Engine:
                 i += 1
 
             value = f.fn(*buffer[0:i])
+
             if f._has_t:
                 self.results[col][t] = value
             else:
@@ -199,7 +200,7 @@ class Engine:
         has_t = False
         i = 0
         for (pcol, pt, ptype) in needs:
-
+            print('get_calc', col, t, '--', pcol, pt, ptype)
             if pcol == 't':
                 values[i] = t
                 has_t = True

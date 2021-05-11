@@ -104,7 +104,7 @@ class ImportedFunc:
             If we know this we can calculate a like optimal graph traversal.
         """
 
-        reg_identifer_timeseries_usages = param + r'\[[^\]]*\]'
+        reg_identifer_timeseries_usages = param + r'\[t[^\]]*\]'
         timeseries_uses = re.findall(reg_identifer_timeseries_usages, code, re.MULTILINE)
 
         if len(timeseries_uses) == 0:

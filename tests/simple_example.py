@@ -5,13 +5,16 @@ def etl():
     return ['value', 'hello world']
 
 def valuation(etl):
-    return etl[0][0]
+    assert len(etl) == 2
+    return etl[0]
 
 def f():
     return 5
 
 def g(f):
+
     return f * 2
+
 
 def h(input_value):
     return input_value ** 2
@@ -27,7 +30,7 @@ def print_f_after_g(f, print_g):
 if __name__ == '__main__':
     import pandas as pd
     d = {
-        'input_value': [3.14]
+        'input_value': [3.14, 3.22]
     }
     ie = declarative.IterativeEngine(pd.DataFrame(d), 'simple_example', display_progressbar=False)
     ie.calculate()
