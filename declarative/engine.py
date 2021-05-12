@@ -6,6 +6,7 @@ import time
 from .importedfunc import ImportedFunc, FORWARD_REFERENCE_TIMESERIES, BACK_REFERENCE_TIMESERIES, SCALER, TIMESERIES, T
 from .graph import Graph
 from .progress_bar import print_progress_bar
+from warnings import warn
 
 """
 Need to determine my vocabulary
@@ -28,7 +29,7 @@ class Engine:
         To get a 30 minute runtime, we would need to split the process across 90 CPUs. (ignoring join time)
     """
 
-    def __init__(self, t=1, input: dict = None, display_progressbar=True):
+    def __init__(self, t=1, input: dict = None, module: str = None, display_progressbar=True):
         self.t = t
         self.display_progressbar = display_progressbar
         self.func_dict = {}
@@ -39,23 +40,76 @@ class Engine:
         self.__df_len__ = None
         self.best_path = []
         self.build_best_path = True
+        self.module = None
+        self._sorted_cost_columns = []
+        self._calculated = False
 
-    def init_df(self, input: dict = None) -> dict:
-        """
-        This is where we initialize the pandas dataframe with any inputs, if none are needed leave input as None
-        """
+        self.initialize(input, module)
+
+    def load_input(self, input: dict = None):
+        self._calculated = False
+        filled_cols = set()
         if input is not None:
             d = input
             for col in input.keys():
                 v = input[col][0]
                 d[col] = [v for i in range(self.t)]
+                filled_cols.add(col)
         else:
             d = {}
 
         d['t'] = [i for i in range(self.t)]
 
+        # if self.results:
+        #     # We've got a previous result saved.
+        #     # lets try and reuse anything we can
+        #     # This is a pretty inefficient pass through the columns.
+        #     fnode: 'Fnode'
+        #     self.calculated = True
+        #     found_one = True
+        #
+        #     while found_one:
+        #         not_found = []
+        #         found_one = False
+        #
+        #         for fnode in self._sorted_cost_columns:
+        #             if fnode.identifier not in not_found:
+        #                 continue
+        #
+        #             print(fnode.identifier)
+        #             f: 'ImportedFunc' = self.func_dict[fnode.identifier]
+        #             col = f.identifier
+        #
+        #             if all(p in filled_cols for p in f.get_params()):
+        #                 print(f'Filling in {col} using previous!')
+        #                 filled_cols.add(col)
+        #                 d[col] = self.results[col]
+        #                 found_one = True
+        #             else:
+        #                 not_found.append(col)
+        #                 self.calculated = False
+
         self.results = d
-        return d
+
+    def initialize(self, input: dict = None, module: str = None):
+        self.load_input(input)
+
+        if self.func_dict:
+            self.process_funcs()
+        elif module:
+            self.module = module
+            self.process_module(self.module)
+
+
+
+    def init_df(self, input: dict = None) -> dict:
+        """
+        This is where we initialize the pandas dataframe with any inputs, if none are needed leave input as None
+        """
+        warn('init_df is deprecated. Please use the initialize or load_input instead')
+        self.load_input(input)
+
+        return self.results
 
     def process_funcs(self):
         """
@@ -78,12 +132,16 @@ class Engine:
 
     def sorted_columns_by_cost(self):
         """ Sorting the columns greatly reduces recursive calls of get_calc """
+        if self._sorted_cost_columns:
+            return self._sorted_cost_columns
 
         funcs = self.func_dict
         g = Graph(funcs, self.t)
 
         sorted_cost_cols = list(g.fnodes.values())
         sorted_cost_cols.sort(key=lambda x: x.cost)
+
+        self._sorted_cost_columns = sorted_cost_cols
         return sorted_cost_cols
 
     def process_module(self, module):
@@ -106,6 +164,13 @@ class Engine:
             Another noticable bit is the pandas check isna. We might be better off using None instead for faster checks.
 
         """
+
+        if self._calculated:
+            return self.results
+
+        if best_path is None and self.best_path:
+            best_path = self.best_path
+            self.build_best_path = False
 
         self.start_time = time.time()
         self.last_update_time = time.time()
@@ -143,6 +208,7 @@ class Engine:
         seconds_elapsed = int((time.time() - self.start_time) * 1000) / 1000
         if self.display_progressbar:
             print_progress_bar(100, 100, prefix='Progress:', suffix=f'Complete {seconds_elapsed} sec', length=50)
+        self._calculated = True
         return self.results
 
     # @profile
