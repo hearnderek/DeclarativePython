@@ -21,7 +21,7 @@ class ImportedFunc:
 
     types = ['scaler', 'timeseries', 'back reference', 'forward reference', 'self reference']
 
-    def __init__(self, identifier: 'str', module: 'str' = None, fn: 'function' = None):
+    def __init__(self, identifier: 'str', module=None, fn: 'function' = None):
         self.module = module
         self.identifier = identifier
         self.fn = fn
@@ -144,7 +144,7 @@ class ImportedFunc:
         i = 0
         for param, ptype in ptypes:
             needed_t = 0
-            if param is 't':
+            if param == 't':
                 needed_t = None
                 ptype = T
                 self._has_t = True
@@ -164,7 +164,20 @@ class ImportedFunc:
         return ls
 
     @staticmethod
-    def get_functions(module: str):
+    def get_functions(module):
+        if type(module) == str:
+            return ImportedFunc.get_functions_from_str(module)
+        elif type(module) == type(re):
+            return ImportedFunc.get_function_from_module(module)
+        else:
+            raise TypeError("get_functions only accepts str and module types as input")
+
+    @staticmethod
+    def get_function_from_module(module: 'module'):
+        return [ImportedFunc(id, module, f) for id, f in getmembers(inspect) if isfunction(f) and not id.startswith('_')]
+
+    @staticmethod
+    def get_functions_from_str(module: str):
         """
         Abusing the python interpreter to do our work.
 

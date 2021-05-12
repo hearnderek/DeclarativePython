@@ -86,7 +86,7 @@ class Engine:
         sorted_cost_cols.sort(key=lambda x: x.cost)
         return sorted_cost_cols
 
-    def process_module(self, module: str):
+    def process_module(self, module):
         """ Load in all of a file's functions into the engine. """
         funcs = ImportedFunc.get_functions(module)
         self.func_dict = dict([(f.identifier, f) for f in funcs])
