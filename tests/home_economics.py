@@ -128,7 +128,7 @@ if __name__ == '__main__':
     }
     df = pd.DataFrame(d)
     declarative.turn_off_progress_bar = True
-    ie = declarative.IterativeEngine(df, current_file, timesteps, True)
+    ie = declarative.IterativeEngine(df, t=timesteps, display_progressbar=True)
     ie.calculate(1)
 
     df = ie.results_to_df()

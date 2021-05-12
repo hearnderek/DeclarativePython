@@ -32,6 +32,6 @@ if __name__ == '__main__':
     d = {
         'input_value': [3.14, 3.22]
     }
-    ie = declarative.IterativeEngine(pd.DataFrame(d), 'simple_example', display_progressbar=False)
+    ie = declarative.IterativeEngine(pd.DataFrame(d), display_progressbar=False)
     ie.calculate()
     print(ie.results_to_df())

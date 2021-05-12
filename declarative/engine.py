@@ -214,7 +214,6 @@ class Engine:
     # @profile
     def optimized_calculate(self, best_path):
         buffer = [None] * 256
-        # gc.disable()
         for (t, col) in best_path:
             f = self.func_dict[col]
 
@@ -266,7 +265,7 @@ class Engine:
         has_t = False
         i = 0
         for (pcol, pt, ptype) in needs:
-            print('get_calc', col, t, '--', pcol, pt, ptype)
+            # print('get_calc', col, t, '--', pcol, pt, ptype)
             if pcol == 't':
                 values[i] = t
                 has_t = True
