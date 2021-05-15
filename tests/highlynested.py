@@ -248,3 +248,17 @@ def f49(f48):
 
 
 
+if __name__ == '__main__':
+    import pandas as pd
+    import numpy as np
+    from pathlib import Path
+    import context
+    import declarative
+    current_file = Path(__file__).stem
+    timesteps = 100
+    df = pd.DataFrame()
+    declarative.turn_off_progress_bar = True
+    ie = declarative.IterativeEngine(df, t=timesteps, display_progressbar=True)
+    ie.calculate(1)
+    print(ie.engine.results)
+    print(ie.results_to_df())

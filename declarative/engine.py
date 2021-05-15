@@ -1,3 +1,4 @@
+from declarative.best_path import BestPath
 import pandas as pd
 import numpy as np
 
@@ -6,6 +7,7 @@ import time
 from .importedfunc import ImportedFunc, FORWARD_REFERENCE_TIMESERIES, BACK_REFERENCE_TIMESERIES, SCALER, TIMESERIES, T
 from .graph import Graph
 from .progress_bar import print_progress_bar
+from .best_path import BestPath
 from warnings import warn
 
 """
@@ -39,10 +41,16 @@ class Engine:
         self.results = {}
         self.__df_len__ = None
         self.best_path = []
+        self.bps = []
+        self.flat_code = []
+        self.flat_code2 = []
+        self.flat_code_locals = {'self': self}
         self.build_best_path = True
         self.module = None
         self._sorted_cost_columns = []
         self._calculated = False
+        self.compiled = None
+        
 
         self.initialize(input, module)
 
@@ -178,10 +186,52 @@ class Engine:
         #     print_progress_bar(0, 100, prefix='Progress:', suffix='Complete', length=50)
 
         if best_path is not None:
+
+            for col, values in self.results.items():
+                    self.flat_code_locals[f'{col}_'] = values
+
+            if self.compiled is None:
+                if isinstance(self.module, str):
+                    tmp_file = f'tmp_{self.module}.py' 
+                else:
+                    tmp_file = f'tmp_{self.module.__name__}.py' 
+                
+                print(tmp_file)
+                with open(tmp_file, 'w') as file:
+                    file.write("def run(" + ', '.join(self.flat_code_locals.keys()) + '):\n')
+                    for line in self.flat_code2:
+                        file.write(f'    {line}\n')
+
+                from importlib import import_module
+                runner = import_module(tmp_file[0:-3])
+
+                run = runner.run
+                self.compiled = run
+                
+                # code = "\n".join(self.flat_code2)
+                # #print(code)
+                # #code = "\n".join(self.flat_code)
+                # #input('press enter to continue: ')
+                # self.compiled = compile(code, '', 'exec')
+
             # This is a 'perfect' pass through our dependency graph.
             # Note: I'm sure there are edge cases which will break this
             # each call to calculate will have all needed values available.
-            self.optimized_calculate(best_path)
+            
+            # 0.000999
+            # 0.292217
+            self.compiled(*self.flat_code_locals.values())
+
+            # 0.0000997
+            # 0.002
+            # 0.068837
+            #self.bp_calculate(best_path)
+
+            # 0.001
+            # 0.005
+            # 0.174582
+            #self.optimized_calculate(best_path)
+
             # for (t, col) in best_path:
             #     self.get_calc_no_recursion(t, col)
         else:
@@ -205,11 +255,32 @@ class Engine:
                     # since we're lazy in figuring out what index is needed
                     self.get_calc(t, col)
 
-        seconds_elapsed = int((time.time() - self.start_time) * 1000) / 1000
+            
+
+        seconds_elapsed = int((time.time() - self.start_time) * 1000000) / 1000000
         if self.display_progressbar:
             print_progress_bar(100, 100, prefix='Progress:', suffix=f'Complete {seconds_elapsed} sec', length=50)
         self._calculated = True
         return self.results
+
+    def bp_calculate(self, best_path):
+        bp: BestPath
+
+
+
+        gs = globals()
+        #print(self.flat_code_locals)
+        #c = compile(self.compiled, '', 'exec')
+        # exec(self.compiled, gs, self.flat_code_locals)
+        exec(self.compiled, gs, self.flat_code_locals)
+        
+        # ls = {'self':self, 'f':None}
+        # for bp in self.bps:
+        #     ls['f']=bp.user_func
+        #     # f = bp.user_func
+        #     # print(bp.code)
+        #     # print(eval(bp.expr))
+        #     exec(bp.code, gs, ls)
 
     # @profile
     def optimized_calculate(self, best_path):
@@ -257,44 +328,77 @@ class Engine:
         if val is not pd.NA:
             return val
 
+        
+
         f = self.func_dict[col]
+
+        bp = BestPath(t, col, f)
 
         needs = f.needs(t)
         # pre-populating list to avoid use of .append()
         values = [None] * len(needs)
         has_t = False
         i = 0
+
+
+        bp_get_args = [None] * len(needs)
+        bp_get_args2 = [None] * len(needs)
         for (pcol, pt, ptype) in needs:
             # print('get_calc', col, t, '--', pcol, pt, ptype)
             if pcol == 't':
                 values[i] = t
                 has_t = True
+                bp_get_args[i] = f'{t}'
+                bp_get_args2[i] = f'{t}'
             elif ptype == SCALER:
                 v = self.get_calc(0, pcol)
                 values[i] = v
+                bp_get_args[i] = f'self.results["{pcol}"][0]'
+                bp_get_args2[i] = f'{pcol}_[0]'
             elif ptype == FORWARD_REFERENCE_TIMESERIES:
                 v = self.get_calc(pt, pcol)
                 values[i] = list(self.results[pcol])
+                bp_get_args[i] = f'self.results["{pcol}"]'
+                bp_get_args2[i] = f'{pcol}_'
             elif ptype == BACK_REFERENCE_TIMESERIES:
                 v = self.get_calc(pt, pcol)
                 values[i] = self.results[pcol]
+                bp_get_args[i] = f'self.results["{pcol}"]'
+                bp_get_args2[i] = f'{pcol}_'
             elif ptype == TIMESERIES:
                 v = self.get_calc(pt, pcol)
                 values[i] = self.results[pcol]
+                bp_get_args[i] = f'self.results["{pcol}"]'
+                bp_get_args2[i] = f'{pcol}_'
             else:
                 print('should not happen')
             i += 1
 
+        bp_code_getter = 'f.fn(' + ', '.join(bp_get_args) + ')'
+        bp_code_col = f'{col}(' + ', '.join(bp_get_args) + ')'
+        bp_code_col2 = f'{col}(' + ', '.join(bp_get_args2) + ')'
+        bp.expr = bp_code_getter
+        bp_code_setter = ''
+        self.flat_code_locals[col] = f.fn
+        self.bps.append(bp)
         if has_t:
             # print(f.identifier, values)
             value = f.fn(*values)
-
+            bp_code_setter = f'self.results["{col}"][{t}] = '
+            bp_code_setter2 = f'{col}_[{t}] = '
+            bp.code = bp_code_setter + bp_code_getter
+            self.flat_code.append(bp_code_setter + bp_code_col)
+            self.flat_code2.append(bp_code_setter2 + bp_code_col2)
             self.results[col][t] = value
             if self.build_best_path:
                 self.best_path.append((t, col))
         else:
             value = f.fn(*values)
-
+            bp_code_setter = f'self.results["{col}"] = '
+            bp_code_setter2 = f'{col}_ = '
+            bp.code = bp_code_setter + "[" + bp_code_getter + f"] * {self.t}"
+            self.flat_code.append(bp_code_setter + "[" + bp_code_col + f"] * {self.t}")
+            self.flat_code2.append(bp_code_setter2 + "[" + bp_code_col2 + f"] * {self.t}")
             for i in self.results['t']:
                 self.results[col][i] = value
             if self.build_best_path:

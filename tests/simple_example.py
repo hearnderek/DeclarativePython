@@ -5,7 +5,7 @@ def etl():
     return ['value', 'hello world']
 
 def valuation(etl):
-    assert len(etl) == 2
+    #assert len(etl) == 2
     return etl[0]
 
 def f():
@@ -32,6 +32,9 @@ if __name__ == '__main__':
     d = {
         'input_value': [3.14, 3.22]
     }
-    ie = declarative.IterativeEngine(pd.DataFrame(d), display_progressbar=False)
+    ie = declarative.IterativeEngine(pd.DataFrame(d), t=1, display_progressbar=False)
     ie.calculate()
     print(ie.results_to_df())
+    
+    for bp in ie.engine.bps:
+        print(bp.code)
