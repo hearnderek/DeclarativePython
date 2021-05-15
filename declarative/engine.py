@@ -402,7 +402,7 @@ class Engine:
             bp.code = bp_code_setter + "[" + bp_code_getter + f"] * {self.t}"
             self.flat_code.append(bp_code_setter + "[" + bp_code_col + f"] * {self.t}")
             self.flat_code2.append(bp_code_setter2 + bp_code_col2)
-            self.flat_code2.append(f'[{col}_[i] for i in range(1,{self.t})]')
+            self.flat_code2.append(f'[{col}_[i] = {col}_[0] for i in range(1,{self.t})]')
             for i in self.results['t']:
                 self.results[col][i] = value
             if self.build_best_path:
