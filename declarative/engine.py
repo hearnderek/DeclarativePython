@@ -379,11 +379,12 @@ class Engine:
         bp_code_col2 = f'{col}(' + ', '.join(bp_get_args2) + ')'
         bp.expr = bp_code_getter
         bp_code_setter = ''
-        self.flat_code_locals[col] = f.fn
-        self.bps.append(bp)
+        
         if has_t:
             # print(f.identifier, values)
             value = f.fn(*values)
+            if pd.isna(value):
+                return value
             bp_code_setter = f'self.results["{col}"][{t}] = '
             bp_code_setter2 = f'{col}_[{t}] = '
             bp.code = bp_code_setter + bp_code_getter
@@ -394,6 +395,8 @@ class Engine:
                 self.best_path.append((t, col))
         else:
             value = f.fn(*values)
+            if pd.isna(value):
+                return value
             bp_code_setter = f'self.results["{col}"] = '
             bp_code_setter2 = f'{col}_ = '
             bp.code = bp_code_setter + "[" + bp_code_getter + f"] * {self.t}"
@@ -403,6 +406,9 @@ class Engine:
                 self.results[col][i] = value
             if self.build_best_path:
                 self.best_path.append((0, col))
+
+        self.flat_code_locals[col] = f.fn
+        self.bps.append(bp)
 
         self.calc_count += 1
 
