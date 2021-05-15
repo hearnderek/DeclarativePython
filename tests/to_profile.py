@@ -1,9 +1,8 @@
 import context
 import declarative
-import pandas as pd
-import numpy as np
 import random
-import time
+
+
 
 """
 Trying to get a more real life example
@@ -31,20 +30,27 @@ def cash(t, initial_cash, cash, sales, fixed_expenses):
 
 
 if __name__ == '__main__':
+    import psutil
+    import os
     import pandas as pd
     import numpy as np
-    timesteps = 35 * 12
-    repeat = 1000
+    p = psutil.Process(os.getpid())
+
+    p.nice(psutil.REALTIME_PRIORITY_CLASS)
+    p.cpu_affinity([1])
+
+    timesteps = 60# * 24 * 35 * 12
+    repeat = 100000 
     df = pd.DataFrame([[100, 17, 0.99, 0]], columns=['initial_cash', 'fixed_expenses', 'sales_price', 'cost_per_sale'])
     df = pd.DataFrame(np.repeat(df.values, repeat, axis=0), columns=df.columns)
     declarative.turn_off_progress_bar = True
-    ie = declarative.IterativeEngine(df, 'to_profile', timesteps, True)
-    ie.calculate(None)
+    ie = declarative.IterativeEngine(df, 'to_profile', timesteps, False)
+    ie.calculate(1)
 
-    df = ie.results_to_df()
-    print(df)
-    for xs in df.values:
-        for x in xs:
-            assert x is not pd.NA
-    assert len(df) == timesteps * repeat
+    # df = ie.results_to_df()
+    # print(df)
+    # for xs in df.values:
+    #     for x in xs:
+    #         assert x is not pd.NA
+    # assert len(df) == timesteps * repeat
 
