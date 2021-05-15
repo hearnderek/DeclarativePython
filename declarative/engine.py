@@ -383,7 +383,7 @@ class Engine:
         if has_t:
             # print(f.identifier, values)
             value = f.fn(*values)
-            if pd.isna(value):
+            if not isinstance(value, list) and pd.isna(value):
                 return value
             bp_code_setter = f'self.results["{col}"][{t}] = '
             bp_code_setter2 = f'{col}_[{t}] = '
@@ -395,14 +395,16 @@ class Engine:
                 self.best_path.append((t, col))
         else:
             value = f.fn(*values)
-            if pd.isna(value):
+            if not isinstance(value, list) and pd.isna(value):
                 return value
             bp_code_setter = f'self.results["{col}"] = '
             bp_code_setter2 = f'{col}_[0] = '
             bp.code = bp_code_setter + "[" + bp_code_getter + f"] * {self.t}"
             self.flat_code.append(bp_code_setter + "[" + bp_code_col + f"] * {self.t}")
             self.flat_code2.append(bp_code_setter2 + bp_code_col2)
-            self.flat_code2.append(f'[{col}_[i] = {col}_[0] for i in range(1,{self.t})]')
+            self.flat_code2.append(f'for i in range(1,{self.t}):')
+            self.flat_code2.append(f'    {col}_[i] = {col}_[0]')
+            
             for i in self.results['t']:
                 self.results[col][i] = value
             if self.build_best_path:
