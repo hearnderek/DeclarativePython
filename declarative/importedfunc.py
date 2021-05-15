@@ -21,7 +21,7 @@ class ImportedFunc:
 
     types = ['scaler', 'timeseries', 'back reference', 'forward reference', 'self reference']
 
-    def __init__(self, identifier: 'str', module: 'str' = None, fn: 'function' = None):
+    def __init__(self, identifier: 'str', module=None, fn: 'function' = None):
         self.module = module
         self.identifier = identifier
         self.fn = fn
@@ -33,10 +33,15 @@ class ImportedFunc:
         self._needs_s = {}
         self._needs_len = None
         self._has_t = False
+        self._params = []
 
     def get_params(self):
+        if self._params:
+            return self._params
+
         # gets all variables then only takes the first ones because they are always arguments
-        return self.fn.__code__.co_varnames[0:self.fn.__code__.co_argcount]
+        self._params = self.fn.__code__.co_varnames[0:self.fn.__code__.co_argcount]
+        return self._params
 
     def get_code(self):
         return inspect.getsource(self.fn)
@@ -104,7 +109,7 @@ class ImportedFunc:
             If we know this we can calculate a like optimal graph traversal.
         """
 
-        reg_identifer_timeseries_usages = param + r'\[[^\]]*\]'
+        reg_identifer_timeseries_usages = param + r'\[t[^\]]*\]'
         timeseries_uses = re.findall(reg_identifer_timeseries_usages, code, re.MULTILINE)
 
         if len(timeseries_uses) == 0:
@@ -144,7 +149,7 @@ class ImportedFunc:
         i = 0
         for param, ptype in ptypes:
             needed_t = 0
-            if param is 't':
+            if param == 't':
                 needed_t = None
                 ptype = T
                 self._has_t = True
@@ -164,7 +169,28 @@ class ImportedFunc:
         return ls
 
     @staticmethod
-    def get_functions(module: str):
+    def get_functions(module):
+        if type(module) == str:
+            return ImportedFunc.get_functions_from_str(module)
+        elif type(module) == type(re):
+            return ImportedFunc.get_function_from_module(module)
+        else:
+            raise TypeError("get_functions only accepts str and module types as input")
+
+    @staticmethod
+    def get_function_from_module(module: 'module'):
+        members = inspect.getmembers(module, inspect.isfunction)
+        print(module)
+        print(members)
+
+        isf = inspect.isfunction
+        xs = [ImportedFunc(id, module, f) for id, f in members if isf(f) and not id.startswith('_')]
+        for f in xs:
+            print(f.identifier)
+        return xs
+
+    @staticmethod
+    def get_functions_from_str(module: str):
         """
         Abusing the python interpreter to do our work.
 

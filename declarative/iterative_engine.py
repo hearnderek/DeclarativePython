@@ -4,7 +4,11 @@ import multiprocessing
 from .engine import Engine
 import copy
 import os
+import sys
 from sqlalchemy import create_engine
+import importlib
+import inspect
+from pathlib import Path
 
 
 class IterativeEngine:
@@ -13,9 +17,24 @@ class IterativeEngine:
 
     If
     """
-    def __init__(self, inputs: pd.DataFrame, module: str, t=1, display_progressbar=True):
-        self.module = module
+    def __init__(self, inputs: pd.DataFrame, module=None, t=1, display_progressbar=True):
+        if module == None:
+            # gets the module of the caller
+            full_path = Path(inspect.currentframe().f_back.f_globals['__file__'])
+            module_name = full_path.stem
+            spec = importlib.util.spec_from_file_location(module_name, full_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
 
+            # module = importlib.i-mport_module(module)
+
+            print(module)
+
+        if type(module) == str:
+            loader = importlib.util.find_spec(module)
+            if loader is None:
+                raise ModuleNotFoundError(module)
+        self.module = module
         # Convert dataframe into python dictionaries for faster iteration
         self.input_columns = list(inputs.columns)
         rows = len(inputs)
@@ -40,21 +59,11 @@ class IterativeEngine:
         """ Will use max processors unless told otherwise """
         if processors is None:
             processors = max(1, int(multiprocessing.cpu_count() / 2))
-        if processors == 1:
+        if processors == 1 or len(self.input_rows) == 1:
             i = 0
-            best_path = None
             for input in self.input_rows:
-                if best_path:
-                    # replace with reset data,
-                    self.engine.init_df(input)
-                    self.engine.process_funcs()
-                    self.results[i] = self.engine.calculate(best_path)
-                else:
-                    self.engine.init_df(input)
-                    self.engine.process_module(self.module)
-                    self.results[i] = self.engine.calculate(best_path)
-                    best_path = self.engine.best_path
-                    self.engine.build_best_path = False
+                self.engine.initialize(input, self.module)
+                self.results[i] = self.engine.calculate()
                 i += 1
                 # print(gc.get_count())
         else:
@@ -62,12 +71,14 @@ class IterativeEngine:
             #   - if cannot divide evenly rows at the end will be missed.
             #   - Results are completely lost.
             #   - Memory hog, Need to offload results to disk.
-            jobs = [None] * processors
+
             n = int(len(self.input_rows) / processors)
 
             splits = split_list(self.input_rows, processors)
-            dbs = [f'{self.module}{i}.sqlite' for i in range(len(splits))]
-            for i in range(processors):
+            num_splits = len(splits)
+            jobs = [None] * num_splits
+            dbs = [f'{self.module}{i}.sqlite' for i in range(num_splits)]
+            for i in range(num_splits):
                 newself = copy.deepcopy(self)
                 newself.input_rows = splits[i]
                 jobs[i] = multiprocessing.Process(target=newself.calculate_subset, args=(dbs[i], f'{self.module}{i}'))
@@ -97,19 +108,9 @@ class IterativeEngine:
 
     def calculate_subset(self, dbname='db.sqlite', table=None):
         i = 0
-        best_path = None
         for input in self.input_rows:
-            if best_path:
-                # replace with reset data,
-                self.engine.init_df(input)
-                self.engine.process_funcs()
-                self.results[i] = self.engine.calculate(best_path)
-            else:
-                self.engine.init_df(input)
-                self.engine.process_module(self.module)
-                self.results[i] = self.engine.calculate(best_path)
-                best_path = self.engine.best_path
-                self.engine.build_best_path = False
+            self.engine.initialize(input, self.module)
+            self.results[i] = self.engine.calculate()
             i += 1
 
         df = self.results_to_df()
@@ -157,9 +158,12 @@ class IterativeEngine:
         return df
 
 
-def split_list(xs: 'list', chunks: int):
+def split_list(xs: 'list', chunks: int) -> 'list':
+
     length = len(xs)
     len_over_chunks = length / chunks
-    return [xs[int(len_over_chunks * i) : int(len_over_chunks * (i+1))] for i in range(chunks)]
+    splits = [xs[int(len_over_chunks * i) : int(len_over_chunks * (i+1))] for i in range(chunks)]
+    splits = [split for split in splits if len(split) > 0]
+    return splits
 
 
