@@ -398,10 +398,11 @@ class Engine:
             if pd.isna(value):
                 return value
             bp_code_setter = f'self.results["{col}"] = '
-            bp_code_setter2 = f'{col}_ = '
+            bp_code_setter2 = f'{col}_[0] = '
             bp.code = bp_code_setter + "[" + bp_code_getter + f"] * {self.t}"
             self.flat_code.append(bp_code_setter + "[" + bp_code_col + f"] * {self.t}")
-            self.flat_code2.append(bp_code_setter2 + "[" + bp_code_col2 + f"] * {self.t}")
+            self.flat_code2.append(bp_code_setter2 + bp_code_col2)
+            self.flat_code2.append(f'[{col}_[i] for i in range(1,{self.t})]')
             for i in self.results['t']:
                 self.results[col][i] = value
             if self.build_best_path:
