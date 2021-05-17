@@ -22,13 +22,13 @@ class IterativeEngine:
             # gets the module of the caller
             full_path = Path(inspect.currentframe().f_back.f_globals['__file__'])
             module_name = full_path.stem
+
+            # problematic
             spec = importlib.util.spec_from_file_location(module_name, full_path)
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
 
             # module = importlib.i-mport_module(module)
-
-            print(module)
 
         if type(module) == str:
             loader = importlib.util.find_spec(module)

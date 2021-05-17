@@ -180,13 +180,9 @@ class ImportedFunc:
     @staticmethod
     def get_function_from_module(module: 'module'):
         members = inspect.getmembers(module, inspect.isfunction)
-        print(module)
-        print(members)
 
         isf = inspect.isfunction
         xs = [ImportedFunc(id, module, f) for id, f in members if isf(f) and not id.startswith('_')]
-        for f in xs:
-            print(f.identifier)
         return xs
 
     @staticmethod
