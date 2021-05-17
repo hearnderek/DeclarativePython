@@ -113,6 +113,7 @@ def test_parallel_runs_extra_processors():
     ie = declarative.IterativeEngine(df, 'home_economics', timesteps, True)
 
     # giving more processers than needed
+    # failing because we can't handle the return type of tax_brackets
     ie.calculate(processors=4)
 
     df = ie.results_to_df()

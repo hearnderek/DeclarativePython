@@ -23,12 +23,13 @@ class IterativeEngine:
             full_path = Path(inspect.currentframe().f_back.f_globals['__file__'])
             module_name = full_path.stem
 
-            # problematic
-            spec = importlib.util.spec_from_file_location(module_name, full_path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-
-            # module = importlib.i-mport_module(module)
+            if 'pass module object' == 'good idea':
+                # problematic -- can't pickle a module, which is used when we split for parallel runs
+                spec = importlib.util.spec_from_file_location(module_name, full_path)
+                module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(module)
+            else:
+                module = module_name
 
         if type(module) == str:
             loader = importlib.util.find_spec(module)
@@ -63,7 +64,11 @@ class IterativeEngine:
             i = 0
             for input in self.input_rows:
                 self.engine.initialize(input, self.module)
-                self.results[i] = self.engine.calculate()
+                if len(self.input_rows) <= 2:
+                    # Don't bother with any time saving calculations
+                    self.results[i] = self.engine.calculate(optimization=5)
+                else:
+                    self.results[i] = self.engine.calculate()
                 i += 1
                 # print(gc.get_count())
         else:

@@ -256,9 +256,9 @@ if __name__ == '__main__':
     import declarative
     current_file = Path(__file__).stem
     timesteps = 100
-    df = pd.DataFrame()
+    df = pd.DataFrame([1], columns=["can't handle empty dataframes..."])
     declarative.turn_off_progress_bar = True
     ie = declarative.IterativeEngine(df, t=timesteps, display_progressbar=True)
     ie.calculate(1)
-    print(ie.engine.results)
+    #print(ie.engine.results)
     print(ie.results_to_df())

@@ -1,4 +1,4 @@
-def run(self, etl, f, h, g, valuation, print_g, print_f_after_g, input_value_, t_, valuation_, print_g_, f_, print_f_after_g_, g_, etl_, h_):
+def run(self, etl, f, h, g, valuation, print_g, print_f_after_g, input_value_, t_, g_, print_g_, f_, print_f_after_g_, valuation_, etl_, h_):
     etl_[0] = etl()
     for i in range(1,1):
         etl_[i] = etl_[0]

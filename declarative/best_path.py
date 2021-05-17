@@ -6,3 +6,4 @@ class BestPath:
         self.col = col
         self.user_func = f
         self.code = ''
+        self.compiled = None

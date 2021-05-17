@@ -33,23 +33,30 @@ class Engine:
 
     def __init__(self, t=1, input: dict = None, module: str = None, display_progressbar=True):
         self.t = t
-        self.display_progressbar = display_progressbar
+        self.module = None
         self.func_dict = {}
-        self.calc_count = 0
-        self.start_time = None
-        self.last_update_time = None
         self.results = {}
         self.__df_len__ = None
+        
+        self.display_progressbar = display_progressbar
+        
+        self.start_time = None
+        self.last_update_time = None
+        
+        # recurive graph calculation members
+        self._sorted_cost_columns = []
+        self.build_best_path = True
+        
+        # members for building optimized calculations
         self.best_path = []
         self.bps = []
         self.flat_code = []
-        self.flat_code2 = []
         self.flat_code_locals = {'self': self}
-        self.build_best_path = True
-        self.module = None
-        self._sorted_cost_columns = []
         self._calculated = False
+        # flat calculation as compiled exec statment
         self.compiled = None
+        # imported flat file function
+        self.run = None
         
 
         self.initialize(input, module)
@@ -68,35 +75,6 @@ class Engine:
 
         d['t'] = [i for i in range(self.t)]
 
-        # if self.results:
-        #     # We've got a previous result saved.
-        #     # lets try and reuse anything we can
-        #     # This is a pretty inefficient pass through the columns.
-        #     fnode: 'Fnode'
-        #     self.calculated = True
-        #     found_one = True
-        #
-        #     while found_one:
-        #         not_found = []
-        #         found_one = False
-        #
-        #         for fnode in self._sorted_cost_columns:
-        #             if fnode.identifier not in not_found:
-        #                 continue
-        #
-        #             print(fnode.identifier)
-        #             f: 'ImportedFunc' = self.func_dict[fnode.identifier]
-        #             col = f.identifier
-        #
-        #             if all(p in filled_cols for p in f.get_params()):
-        #                 print(f'Filling in {col} using previous!')
-        #                 filled_cols.add(col)
-        #                 d[col] = self.results[col]
-        #                 found_one = True
-        #             else:
-        #                 not_found.append(col)
-        #                 self.calculated = False
-
         self.results = d
 
     def initialize(self, input: dict = None, module: str = None):
@@ -107,8 +85,6 @@ class Engine:
         elif module:
             self.module = module
             self.process_module(self.module)
-
-
 
     def init_df(self, input: dict = None) -> dict:
         """
@@ -158,7 +134,7 @@ class Engine:
         self.func_dict = dict([(f.identifier, f) for f in funcs])
         self.process_funcs()
 
-    def calculate(self, best_path=None):
+    def calculate(self, best_path=None, optimization=5):
         """
         using the input columns, and all of the loaded functions calculate every single value.
 
@@ -185,60 +161,52 @@ class Engine:
         # if self.display_progressbar:
         #     print_progress_bar(0, 100, prefix='Progress:', suffix='Complete', length=50)
 
-        if best_path is not None:
 
-            for col, values in self.results.items():
-                    self.flat_code_locals[f'{col}_'] = values
 
-            if self.compiled is None:
-                if isinstance(self.module, str):
-                    tmp_file = f'tmp_{self.module}.py' 
-                else:
-                    tmp_file = f'tmp_{self.module.__name__}.py' 
-                
-                # print(tmp_file)
-                with open(tmp_file, 'w') as file:
-                    file.write("def run(" + ', '.join(self.flat_code_locals.keys()) + '):\n')
-                    for line in self.flat_code2:
-                        file.write(f'    {line}\n')
-
-                from importlib import import_module
-                runner = import_module(tmp_file[0:-3])
-
-                run = runner.run
-                self.compiled = run
-                
-                # code = "\n".join(self.flat_code2)
-                # #print(code)
-                # #code = "\n".join(self.flat_code)
-                # #input('press enter to continue: ')
-                # self.compiled = compile(code, '', 'exec')
-
-            # This is a 'perfect' pass through our dependency graph.
-            # Note: I'm sure there are edge cases which will break this
-            # each call to calculate will have all needed values available.
+        if optimization > 0 and self.optimization_prepped(optimization):
             
-            # 0.000999
-            # 0.292217
-            self.compiled(*self.flat_code_locals.values())
+            # All are identical 'perfect' passes through our dependency graph.
+            # They all use different approaches with different tradeoffs.
+            # Note: I'm sure there are edge cases which will break this
+            # - a dependency graph that changes with different inputs is an obvious 
+            # each call to calculate will have all needed values available.
 
-            # 0.0000997
-            # 0.002
-            # 0.068837
-            #self.bp_calculate(best_path)
 
-            # 0.001
-            # 0.005
-            # 0.174582
-            #self.optimized_calculate(best_path)
-
-            # for (t, col) in best_path:
-            #     self.get_calc_no_recursion(t, col)
+            if optimization == 1:
+                # Limitation: 1_000_000 LoC
+                # Pros: File can be reused
+                # Con: Involves Writing and reading from disk for first pass
+                # 0.000999
+                # 0.292217
+                self.flat_calc_file()
+            elif optimization == 2:
+                # Limitation: 1_000_000 LoC
+                # Pros: No File IO
+                # Cannot reuse
+                self.flat_calc_in_memory()
+            elif optimization == 3:
+                # 0.0000997
+                # 0.002
+                # 0.068837
+                # Con: Need to calculate python for every calculation on first pass. This is VERY slow.
+                # Pro: No Limitation of LoC, and handles memory better than importlib, and compiled python is very fast.
+                self.prepped_perfect_pass_get_calc()
+            elif optimization == 4:
+                # 0.001
+                # 0.005
+                # 0.174582    
+                # Pro: No Limitation of Loc
+                # Con: If sorted columns is an inefficient path through the graph we'll experience slowdowns
+                self.perfect_pass_get_calc(best_path)
+            elif optimization >= 5:
+                for col in [x.identifier for x in self.sorted_columns_by_cost()]:
+                    for t in range(0, self.t):
+                        self.get_calc_no_frills(t, col)
+            
         else:
             # taking a calculated guess at a good path through our dependency graph
             # Guess is based on a cost function, which gets bigger the further down the chain the calls are.
             sorted_cost_cols = self.sorted_columns_by_cost()
-
             for col in [x.identifier for x in sorted_cost_cols]:
                 for t in range(0, self.t):
                     # visit all indicies and setting the values within underlying pandas dataframe
@@ -263,27 +231,111 @@ class Engine:
         self._calculated = True
         return self.results
 
-    def bp_calculate(self, best_path):
+
+    
+    def optimization_prepped(self, optimization):
+        if optimization == 1:
+            return True if self.flat_code else False
+        elif optimization == 2:
+            return True if self.flat_code else False
+        elif optimization == 3:
+            return True if self.bps else False
+        elif optimization == 4:
+            return True if self.best_path else False
+        elif optimization == 5:
+            return True
+        else:
+            return False
+            
+
+
+    def flat_calc_file(self):
+        """ 
+        CHANGING STATE!
+        sets all of the values within results due to pass by reference
+        """
+
+        # The underlying pass by reference lists get rebuild as new objects every time a new batch of input is received
+        # for this reason we must reassign flat_code_locals result lists
+        for col, values in self.results.items():
+            self.flat_code_locals[f'{col}_'] = values
+
+
+        if self.run is None:
+            self.bps = ['Freeing up memory']
+
+
+            # Creating our file
+            if isinstance(self.module, str):
+                tmp_file = f'tmp_{self.module}.py'
+            
+            with open(tmp_file, 'w') as file:
+                # converting our flat calculation script to a function definition
+                file.write("def run(" + ', '.join(self.flat_code_locals.keys()) + '):\n')
+                for line in self.flat_code:
+                    file.write(f'    {line}\n')
+
+                self.flat_code = ['Freeing up memory']
+
+
+            # loading our file into memory
+            from importlib import import_module
+            # dropping the ".py" extension
+            runner = import_module(tmp_file[0:-3])
+            # Everything is within the declared run function
+            self.run = runner.run
+
+
+
+        # run takes all user functions, pass by reference result lists
+        # thanks to the magic of python argument expansion we can just use our dictionary
+        self.run(*self.flat_code_locals.values())
+
+    def flat_calc_in_memory(self):
+        """ 
+        CHANGING STATE!
+        sets all of the values within results due to pass by reference
+        """
+        # The underlying pass by reference lists get rebuild as new objects every time a new batch of input is received
+        # for this reason we must reassign flat_code_locals result lists
+        for col, values in self.results.items():
+            self.flat_code_locals[f'{col}_'] = values
+
+        if self.compiled is None:
+            self.bps = ['Freeing up memory']
+            code = "\n".join(self.flat_code)
+            self.flat_code = ['Freeing up memory']
+            self.compiled = compile(code, '', 'exec')
+
+        # pass by reference state and all needed inputs are passed through self.flat_code_locals
+        exec(self.compiled, globals(), self.flat_code_locals)
+
+    def prepped_perfect_pass_get_calc(self):
+        """
+        This is an optimized version of optimized calculate.
+        """
         bp: BestPath
 
-
-
         gs = globals()
-        #print(self.flat_code_locals)
-        #c = compile(self.compiled, '', 'exec')
-        # exec(self.compiled, gs, self.flat_code_locals)
-        exec(self.compiled, gs, self.flat_code_locals)
-        
-        # ls = {'self':self, 'f':None}
-        # for bp in self.bps:
-        #     ls['f']=bp.user_func
-        #     # f = bp.user_func
-        #     # print(bp.code)
-        #     # print(eval(bp.expr))
-        #     exec(bp.code, gs, ls)
+        just_compiled = True
+        for bp in self.bps:
+            if not bp.compiled:
+                bp.compiled = compile(bp.code, '', 'exec')
+            else:
+                compiled = False
+                # Only looking at first value
+                break
+        if just_compiled:
+            self.flat_code = ['Freeing up memory']
+            self.flat_code_locals = ['Freeing up memory']
 
-    # @profile
-    def optimized_calculate(self, best_path):
+
+        ls = {'self':self, 'f':None}
+        for bp in self.bps:
+            ls['f']=bp.user_func
+            exec(bp.compiled, gs, ls)
+
+    def perfect_pass_get_calc(self, best_path):
         buffer = [None] * 256
         for (t, col) in best_path:
             f = self.func_dict[col]
@@ -375,35 +427,34 @@ class Engine:
             i += 1
 
         bp_code_getter = 'f.fn(' + ', '.join(bp_get_args) + ')'
-        bp_code_col = f'{col}(' + ', '.join(bp_get_args) + ')'
-        bp_code_col2 = f'{col}(' + ', '.join(bp_get_args2) + ')'
-        bp.expr = bp_code_getter
-        bp_code_setter = ''
+        flat_code_col2 = f'{col}(' + ', '.join(bp_get_args2) + ')'
         
+        value = f.fn(*values)
+
+        # pd.isna fails if value happens to be a list
+        if not isinstance(value, list) and pd.isna(value):
+            # for some reason the calculation involved an NA value.
+            # We'll try again later.
+            return value
+
+        # Generating a faster tomorrow
         if has_t:
-            # print(f.identifier, values)
-            value = f.fn(*values)
-            if not isinstance(value, list) and pd.isna(value):
-                return value
             bp_code_setter = f'self.results["{col}"][{t}] = '
-            bp_code_setter2 = f'{col}_[{t}] = '
             bp.code = bp_code_setter + bp_code_getter
-            self.flat_code.append(bp_code_setter + bp_code_col)
-            self.flat_code2.append(bp_code_setter2 + bp_code_col2)
+
+            flat_code_setter2 = f'{col}_[{t}] = '
+            self.flat_code.append(flat_code_setter2 + flat_code_col2)
             self.results[col][t] = value
             if self.build_best_path:
                 self.best_path.append((t, col))
         else:
-            value = f.fn(*values)
-            if not isinstance(value, list) and pd.isna(value):
-                return value
             bp_code_setter = f'self.results["{col}"] = '
-            bp_code_setter2 = f'{col}_[0] = '
             bp.code = bp_code_setter + "[" + bp_code_getter + f"] * {self.t}"
-            self.flat_code.append(bp_code_setter + "[" + bp_code_col + f"] * {self.t}")
-            self.flat_code2.append(bp_code_setter2 + bp_code_col2)
-            self.flat_code2.append(f'for i in range(1,{self.t}):')
-            self.flat_code2.append(f'    {col}_[i] = {col}_[0]')
+            
+            flat_code_setter2 = f'{col}_[0] = '
+            self.flat_code.append(flat_code_setter2 + flat_code_col2)
+            self.flat_code.append(f'for i in range(1,{self.t}):')
+            self.flat_code.append(f'    {col}_[i] = {col}_[0]')
             
             for i in self.results['t']:
                 self.results[col][i] = value
@@ -412,8 +463,6 @@ class Engine:
 
         self.flat_code_locals[col] = f.fn
         self.bps.append(bp)
-
-        self.calc_count += 1
 
         if not self.last_update_time:
             self.last_update_time = time.time()
@@ -439,3 +488,53 @@ class Engine:
 
         return value
 
+    def get_calc_no_frills(self, t, col):
+        """
+        Recursively get all the values needed to perform this calculation, save result (memoization), and return
+
+        For scaler values use t=0
+        """
+        if col == 't':
+            return t
+
+        if t < 0 or t >= self.t:
+            # expected to be handled within user functions
+            return 'time out of range'
+
+        val = self.results[col][t]
+        if val is not pd.NA:
+            return val
+
+        f = self.func_dict[col]
+        needs = f.needs(t)
+        # pre-populating list to avoid use of .append()
+        args = [None] * len(needs)
+        has_t = False
+        i = 0
+        for (pcol, pt, ptype) in needs:
+            # print('get_calc', col, t, '--', pcol, pt, ptype)
+            if pcol == 't':
+                args[i] = t
+                has_t = True
+            elif ptype == SCALER:
+                args[i] = self.get_calc(0, pcol)
+            elif ptype > SCALER:
+                v = self.get_calc(pt, pcol)
+                args[i] = self.results[pcol]
+            else:
+                print('should not happen')
+            i += 1
+        
+        value = f.fn(*args)
+        
+        # pd.isna fails if value happens to be a list
+        if not isinstance(value, list) and pd.isna(value):
+            # for some reason the calculation involved an NA value.
+            # We'll try again later.
+            return value
+
+        if has_t:
+            for i in self.results['t']:
+                self.results[col][i] = value
+        
+        return value

@@ -34,12 +34,13 @@ if __name__ == '__main__':
     import os
     import pandas as pd
     import numpy as np
-    p = psutil.Process(os.getpid())
 
-    p.nice(psutil.REALTIME_PRIORITY_CLASS)
-    p.cpu_affinity([1])
+    # Make our process run on a dedicated CPU
+    # p = psutil.Process(os.getpid())
+    # p.nice(psutil.REALTIME_PRIORITY_CLASS)
+    # p.cpu_affinity([1])
 
-    timesteps = 60 * 24 * 35 # * 12
+    timesteps = 60 * 24 * 35 #* 12
     repeat = 10 
     df = pd.DataFrame([[100, 17, 0.99, 0]], columns=['initial_cash', 'fixed_expenses', 'sales_price', 'cost_per_sale'])
     df = pd.DataFrame(np.repeat(df.values, repeat, axis=0), columns=df.columns)
@@ -53,6 +54,4 @@ if __name__ == '__main__':
     #     for x in xs:
     #         assert x is not pd.NA
     # assert len(df) == timesteps * repeat
-
-     
 
