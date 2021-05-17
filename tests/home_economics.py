@@ -1,3 +1,4 @@
+from re import M
 import context
 import declarative
 import math
@@ -74,8 +75,38 @@ def monthly_salary_post_tax(t, monthly_salary, monthly_income_tax):
 def monthly_salary(t, yearly_salary):
     return yearly_salary[t] / 12
 
-def monthly_income_tax(t, monthly_salary, simplified_income_tax_rate):
-    return monthly_salary[t] * simplified_income_tax_rate
+def yearly_cumulative_income(t, year, yearly_cumulative_income, monthly_salary, bonus):
+    if t == 0 or year[t-1] != year[t]:
+        return monthly_salary[t] + bonus[t]
+    else:
+        return yearly_cumulative_income[t-1] + monthly_salary[t] + bonus[t]
+
+def monthly_income_tax(t, year, yearly_cumulative_income, monthly_salary, bonus):
+    
+    brackets2021 = [
+        (14200.000, 0.10),
+        (54200.000, 0.12),
+        (86350.000, 0.22),
+        (164900.00, 0.24),
+        (209400.00, 0.32),
+        (523600.00, 0.35),
+        (999999999999, 0.37)
+    ]
+
+    monthly_tax = 0.0
+    taxed_income = 0.0 if t == 0 or year[t-1] != year[t] else yearly_cumulative_income[t-1]
+    remaining = monthly_salary[t] + bonus[t]
+    i = 0
+    while remaining > 0:
+        top, rate = brackets2021[i]
+        if taxed_income < top:
+            top_remaining = top - taxed_income
+            to_tax = min(remaining, top_remaining)
+            remaining -= to_tax
+            monthly_tax += to_tax * rate
+        i+=1
+
+    return monthly_tax
 
 def yearly_salary(t, initial_salary, yearly_salary, salary_increase):
     if t == 0:
@@ -112,10 +143,10 @@ if __name__ == '__main__':
     from pathlib import Path
     current_file = Path(__file__).stem
 
-    timesteps = 5 * 12
+    timesteps = 10 * 12
     d = {
         'initial_account_balance': [1200],
-        'initial_salary': [65000],
+        'initial_salary': [100000],
         'initial_yearly_expenses': [40000],
         'initial_investments': [0],
         'average_market_growth': [0.06],
@@ -133,8 +164,10 @@ if __name__ == '__main__':
 
     df = ie.results_to_df()
     print(df[list(ie.engine.func_dict.keys())])
-    print(df[list([key for key in ie.engine.func_dict.keys() if 'debt' in key])])
+    # print(df[list([key for key in ie.engine.func_dict.keys() if 'debt' in key])])
     print(df[list([key for key in ie.engine.func_dict.keys() if 'inv' in key])])
+    # print(df[list([key for key in ie.engine.func_dict.keys() if 'monthly' in key])])
+    print(df[['year', 'monthly_salary', 'bonus', 'yearly_cumulative_income', 'monthly_income_tax']])
     for xs in df.values:
         for x in xs:
             assert x is not pd.NA
