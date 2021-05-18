@@ -40,18 +40,19 @@ if __name__ == '__main__':
     # p.nice(psutil.REALTIME_PRIORITY_CLASS)
     # p.cpu_affinity([1])
 
-    timesteps = 60 * 24 * 35 #* 12
-    repeat = 3 
+    timesteps = 60 #* 24 * 35 #* 12
+    processors = 3
+    repeat = 3 * processors
     for optimization in range(1,6):
         df = pd.DataFrame([[100, 17, 0.99, 0]], columns=['initial_cash', 'fixed_expenses', 'sales_price', 'cost_per_sale'])
         df = pd.DataFrame(np.repeat(df.values, repeat, axis=0), columns=df.columns)
         declarative.turn_off_progress_bar = True
         ie = declarative.IterativeEngine(df, 'to_profile', timesteps, True)
-        ie.calculate(1, optimization)
+        ie.calculate(processors, optimization)
 
-    df = ie.results_to_df()
-    print(df)
+        df = ie.results_to_df()
+        print(df)
     
-    for col in df.columns:
-        assert df.isna().sum()[col] == 0, f"in optimization {optimization} -- {col} is has pd.NA values"
+        for col in df.columns:
+            assert df.isna().sum()[col] == 0, f"in optimization {optimization} -- {col} is has pd.NA values"
 

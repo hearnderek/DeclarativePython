@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import multiprocessing
+from multiprocessing.queues import Queue
 from .engine import Engine
 import copy
 import os
@@ -56,7 +57,7 @@ class IterativeEngine:
 
         self.__df_results = None
 
-    def calculate(self, processors=1, optimization=None):
+    def calculate(self, processors=1, optimization=5):
         """ Will use max processors unless told otherwise """
         if processors is None:
             processors = max(1, int(multiprocessing.cpu_count() / 2))
@@ -84,36 +85,55 @@ class IterativeEngine:
             splits = split_list(self.input_rows, processors)
             num_splits = len(splits)
             jobs = [None] * num_splits
+            
+            queues = [Queue(ctx=multiprocessing.get_context()) for i in range(num_splits)]
             dbs = [f'{self.module}{i}.sqlite' for i in range(num_splits)]
             for i in range(num_splits):
+                queue = queues[i]
+                queue.put({'result_id': i})
                 newself = copy.deepcopy(self)
                 newself.input_rows = splits[i]
-                jobs[i] = multiprocessing.Process(target=newself.calculate_subset, args=(dbs[i], f'{self.module}{i}'))
+                jobs[i] = multiprocessing.Process(target=newself.calculate_subset, args=(queue, optimization))
                 jobs[i].start()
+
+
+            return_dicts = [q.get() for q in queues]
+            print('got from queues')
+
 
             for job in jobs:
                 job.join()
 
+            print('jobs done')
+
             i = 0
-            for db in dbs:
-                alch = create_engine(f'sqlite:///{db}', echo=False)
 
-                sqlite_table = f'{self.module}{i}'
+            
+            
+            # Set last dict as initial 
+            for d in return_dicts[-1:]:
+                r = d['results']
+                self.results = d['results']
+                self.results['result_id'] = [d['result_id']] * len(r['t'])
+                print('result_id len', len(self.results['result_id']))
+                r = d['results']
+                for col, xs in r.items():
+                    print('    ', col, len(xs))
 
-                with alch.connect() as sqlite_conn:
-                    df = pd.read_sql_table(sqlite_table, sqlite_conn)
-                    if self.__df_results is None:
-                        self.__df_results = df
-                    else:
-                        self.__df_results = pd.concat([self.__df_results, df])
+            # In reverse order add results to beginning of list
+            for d in return_dicts[-2::-1]:
+                r = d['results']
+                self.results['result_id'][0:0] = [d['result_id']] * len(r['t'])
+                print('result_id len', len(self.results['result_id']))
+                for col, xs in r.items():
+                    print('    ', col, len(xs))
+                    self.results[col][0:0] = xs
+            
+            print('result_id len', len(self.results['result_id']))
+            
 
-                os.remove(db)
-                print(f'loaded in {i} tables')
-                i += 1
-
-            self.__df_results = self.__df_results.set_index(['result_id', 't'])
-
-    def calculate_subset(self, dbname='db.sqlite', table=None):
+    def calculate_subset(self, queue, optimization=5):
+        return_dict = queue.get()
         i = 0
         for input in self.input_rows:
             self.engine.initialize(input, self.module)
@@ -126,15 +146,10 @@ class IterativeEngine:
                 self.results[i] = self.engine.calculate()
             i += 1
 
-        df = self.results_to_df()
-        alch = create_engine(f'sqlite:///{dbname}', echo=False)
+        return_dict['results'] = self.engine.results
+        queue.put(return_dict)
 
-        sqlite_table = self.module if table is None else table
-
-        print(f'OPEN -- sqlite:///{dbname}')
-        with alch.connect() as sqlite_conn:
-            df.to_sql(sqlite_table, sqlite_conn, if_exists='replace')
-        # print(df)
+        print('subcalc done')
 
     def df_columns(self):
         """
@@ -143,9 +158,7 @@ class IterativeEngine:
         if not self.results:
             return []
 
-        fst = self.results[0]
-        columns = ['result_id']
-        columns.extend(fst.keys())
+        return self.results.keys()
 
         return columns
 
@@ -157,16 +170,11 @@ class IterativeEngine:
         result_id and t will serve as our two indexes.
         """
         df_columns = self.df_columns()
-        d = dict([(col, []) for col in df_columns])
 
-        for i, result in self.results.items():
+        for col, xs in self.results.items():
+            print(col, len(xs))
 
-            d['result_id'].extend([i for t in result['t']])
-
-            for col, xs in result.items():
-                d[col].extend(xs)
-
-        df = pd.DataFrame.from_dict(d, orient='columns')
+        df = pd.DataFrame.from_dict(self.results, orient='columns')
         df = df.set_index(['result_id', 't'])
         return df
 
