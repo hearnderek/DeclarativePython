@@ -540,6 +540,9 @@ class Engine:
 
         if has_t:
             self.results[col][t] = value
+        else:
+            for i in self.results['t']:
+                self.results[col][i] = value
             
          
         return value

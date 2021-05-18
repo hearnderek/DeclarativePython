@@ -23,7 +23,7 @@ def test1():
 
     print(df)
 
-    df = run.calculate()
+    df = run.calculate(optimization=5)
     print(df)
 
     for xs in df.values():
