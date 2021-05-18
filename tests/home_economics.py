@@ -76,6 +76,7 @@ def monthly_salary(t, yearly_salary):
     return yearly_salary[t] / 12
 
 def yearly_cumulative_income(t, year, yearly_cumulative_income, monthly_salary, bonus):
+    print('yearly_cumulative_income', t, year, yearly_cumulative_income, monthly_salary, bonus)
     if t == 0 or year[t-1] != year[t]:
         return monthly_salary[t] + bonus[t]
     else:
@@ -148,7 +149,7 @@ if __name__ == '__main__':
     from pathlib import Path
     current_file = Path(__file__).stem
 
-    timesteps = 10 * 12
+    timesteps = 12
     d = {
         'initial_account_balance': [1200],
         'initial_salary': [100000],

@@ -199,10 +199,12 @@ class Engine:
                 # Con: If sorted columns is an inefficient path through the graph we'll experience slowdowns
                 self.perfect_pass_get_calc(best_path)
             elif optimization >= 5:
-                for col in [x.identifier for x in self.sorted_columns_by_cost()]:
+                for col in [x.identifier for x in self.sorted_columns_by_cost()[:-1]]:
                     for t in range(0, self.t):
                         self.get_calc_no_frills(t, col)
-            
+                col = self.sorted_columns_by_cost()[-1].identifier
+                for t in range(0, self.t):
+                    self.results[col][t] = self.get_calc_no_frills(t, col)
         else:
             # taking a calculated guess at a good path through our dependency graph
             # Guess is based on a cost function, which gets bigger the further down the chain the calls are.
@@ -501,6 +503,8 @@ class Engine:
             # expected to be handled within user functions
             return 'time out of range'
 
+        #print('get_calc_no_frills', col, t)
+
         val = self.results[col][t]
         if val is not pd.NA:
             return val
@@ -512,11 +516,12 @@ class Engine:
         has_t = False
         i = 0
         for (pcol, pt, ptype) in needs:
-            # print('get_calc', col, t, '--', pcol, pt, ptype)
+            
             if pcol == 't':
                 args[i] = t
                 has_t = True
             elif ptype == SCALER:
+                # sets results at the same time
                 args[i] = self.get_calc(0, pcol)
             elif ptype > SCALER:
                 v = self.get_calc(pt, pcol)
@@ -524,7 +529,7 @@ class Engine:
             else:
                 print('should not happen')
             i += 1
-        
+        # print('get_calc_no_frills', col, t, args)
         value = f.fn(*args)
         
         # pd.isna fails if value happens to be a list
@@ -534,7 +539,7 @@ class Engine:
             return value
 
         if has_t:
-            for i in self.results['t']:
-                self.results[col][i] = value
-        
+            self.results[col][t] = value
+            
+         
         return value

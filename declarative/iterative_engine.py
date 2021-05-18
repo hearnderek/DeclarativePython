@@ -17,7 +17,7 @@ class IterativeEngine:
 
     If
     """
-    def __init__(self, inputs: pd.DataFrame, module=None, t=1, display_progressbar=True):
+    def __init__(self, inputs: pd.DataFrame = None, module=None, t=1, display_progressbar=True):
         if module == None:
             # gets the module of the caller
             full_path = Path(inspect.currentframe().f_back.f_globals['__file__'])
@@ -38,7 +38,7 @@ class IterativeEngine:
         self.module = module
         # Convert dataframe into python dictionaries for faster iteration
         self.input_columns = list(inputs.columns)
-        rows = len(inputs)
+        rows = max(len(inputs), 1)
         self.input_rows = []
 
         d = {}
@@ -56,7 +56,7 @@ class IterativeEngine:
 
         self.__df_results = None
 
-    def calculate(self, processors=1):
+    def calculate(self, processors=1, optimization=None):
         """ Will use max processors unless told otherwise """
         if processors is None:
             processors = max(1, int(multiprocessing.cpu_count() / 2))
@@ -64,7 +64,9 @@ class IterativeEngine:
             i = 0
             for input in self.input_rows:
                 self.engine.initialize(input, self.module)
-                if len(self.input_rows) <= 2:
+                if optimization is not None:
+                    self.results[i] = self.engine.calculate(optimization=optimization)
+                elif len(self.input_rows) <= 2:
                     # Don't bother with any time saving calculations
                     self.results[i] = self.engine.calculate(optimization=5)
                 else:
@@ -115,7 +117,13 @@ class IterativeEngine:
         i = 0
         for input in self.input_rows:
             self.engine.initialize(input, self.module)
-            self.results[i] = self.engine.calculate()
+            if optimization is not None:
+                self.results[i] = self.engine.calculate(optimization=optimization)
+            elif len(self.input_rows) <= 2:
+                # Don't bother with any time saving calculations
+                self.results[i] = self.engine.calculate(optimization=5)
+            else:
+                self.results[i] = self.engine.calculate()
             i += 1
 
         df = self.results_to_df()

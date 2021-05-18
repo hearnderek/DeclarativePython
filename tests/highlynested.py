@@ -246,6 +246,8 @@ def f48(f47):
 def f49(f48):
     return f48 + 1
 
+def f50(f49):
+    return f49 + 1
 
 
 if __name__ == '__main__':
@@ -256,9 +258,14 @@ if __name__ == '__main__':
     import declarative
     current_file = Path(__file__).stem
     timesteps = 100
-    df = pd.DataFrame([1], columns=["can't handle empty dataframes..."])
-    declarative.turn_off_progress_bar = True
-    ie = declarative.IterativeEngine(df, t=timesteps, display_progressbar=True)
-    ie.calculate(1)
-    #print(ie.engine.results)
-    print(ie.results_to_df())
+    for optimization in range(0, 6):
+        df = pd.DataFrame()
+        declarative.turn_off_progress_bar = True
+        ie = declarative.IterativeEngine(df, t=timesteps, display_progressbar=True)
+        ie.calculate(1, optimization)
+        #print(ie.engine.results)
+        df = ie.results_to_df()
+        print(df)
+
+        for col in df.columns:
+            assert df.isna().sum()[col] == 0, f"in optimization {optimization} -- {col} is has pd.NA values"

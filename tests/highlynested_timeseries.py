@@ -251,3 +251,23 @@ def f49(t, f48):
 
 
 
+
+if __name__ == '__main__':
+    import pandas as pd
+    import numpy as np
+    from pathlib import Path
+    import context
+    import declarative
+    current_file = Path(__file__).stem
+    timesteps = 100
+    for optimization in range(0, 6):
+        df = pd.DataFrame()
+        declarative.turn_off_progress_bar = True
+        ie = declarative.IterativeEngine(df, t=timesteps, display_progressbar=True)
+        ie.calculate(1, optimization)
+        #print(ie.engine.results)
+        df = ie.results_to_df()
+        print(df)
+
+        for col in df.columns:
+            assert df.isna().sum()[col] == 0, f"in optimization {optimization} -- {col} is has pd.NA values"
