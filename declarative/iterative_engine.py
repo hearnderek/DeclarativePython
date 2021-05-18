@@ -66,12 +66,12 @@ class IterativeEngine:
             for input in self.input_rows:
                 self.engine.initialize(input, self.module)
                 if optimization is not None:
-                    self.results[i] = self.engine.calculate(optimization=optimization)
+                    self.results = self.engine.calculate(optimization=optimization)
                 elif len(self.input_rows) <= 2:
                     # Don't bother with any time saving calculations
-                    self.results[i] = self.engine.calculate(optimization=5)
+                    self.results = self.engine.calculate(optimization=5)
                 else:
-                    self.results[i] = self.engine.calculate()
+                    self.results = self.engine.calculate()
                 i += 1
                 # print(gc.get_count())
         else:
@@ -175,6 +175,8 @@ class IterativeEngine:
             print(col, len(xs))
 
         df = pd.DataFrame.from_dict(self.results, orient='columns')
+        if 'result_id' not in df_columns:
+            df['result_id'] = 1
         df = df.set_index(['result_id', 't'])
         return df
 
