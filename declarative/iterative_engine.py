@@ -6,7 +6,6 @@ from .engine import Engine
 import copy
 import os
 import sys
-from sqlalchemy import create_engine
 import importlib
 import inspect
 from pathlib import Path
@@ -80,7 +79,6 @@ class IterativeEngine:
                 else:
                     results[i] = self.engine.calculate()
                 i += 1
-                # print(gc.get_count())
 
             d = dict([(col, []) for col in list(results[0].keys()) + ['result_id']])
 
@@ -119,43 +117,50 @@ class IterativeEngine:
 
             return_dicts = []
             for engine_job in engine_jobs:
-                return_dict = {'results': engine_job.queue.get(), 'result_id': engine_job.id}
+                # return_dict = {'results': engine_job.queue.get(), 'result_id': engine_job.id}
+                return_dict = engine_job.queue.get()
                 return_dicts.append(return_dict)
                 engine_job.process.join()
 
             i = 0
 
-            
-            
-            # Set last dict as initial 
-            for d in return_dicts[-1:]:
-                r = d['results']
-                self.results = d['results']
-                self.results['result_id'] = [d['result_id']] * len(r['t'])
-                r = d['results']
+            print(list(return_dicts[0].keys()))
+            d = dict([(col, []) for col in list(return_dicts[0].keys())])
 
-            # In reverse order add results to beginning of list
-            for d in return_dicts[-2::-1]:
-                r = d['results']
-                self.results['result_id'][0:0] = [d['result_id']] * len(r['t'])
-                for col, xs in r.items():
-                    self.results[col][0:0] = xs
+
+            for result in return_dicts:
+                for col, xs in result.items():
+                    d[col].extend(xs)
+            self.results = d
             
 
     def calculate_subset(self, queue, optimization=5):
         i = 0
+        results = {}
         for input in self.input_rows:
             self.engine.initialize(input, self.module)
             if optimization is not None:
-                self.results[i] = self.engine.calculate(optimization=optimization)
+                results[i] = self.engine.calculate(optimization=optimization)
             elif len(self.input_rows) <= 2:
                 # Don't bother with any time saving calculations
-                self.results[i] = self.engine.calculate(optimization=5)
+                results[i] = self.engine.calculate(optimization=5)
             else:
-                self.results[i] = self.engine.calculate()
+                results[i] = self.engine.calculate()
             i += 1
+            # print(gc.get_count())
 
-        queue.put(self.engine.results)
+        d = dict([(col, []) for col in list(results[0].keys()) + ['result_id']])
+
+        for i, result in results.items():
+
+            d['result_id'].extend([i for t in result['t']])
+
+            for col, xs in result.items():
+                d[col].extend(xs)
+        for col, xs in d.items():
+            print(col, len(xs))
+            
+        queue.put(d)
 
     def df_columns(self):
         """
@@ -178,6 +183,7 @@ class IterativeEngine:
         df = pd.DataFrame.from_dict(self.results, orient='columns')
         if 'result_id' not in df_columns:
             df['result_id'] = 1
+        
         df = df.set_index(['result_id', 't'])
         return df
 
