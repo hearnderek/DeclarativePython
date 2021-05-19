@@ -6,17 +6,27 @@ import math
 def net_worth(t, account_balance, investments, debt):
     return account_balance[t] + investments[t] - debt[t]
 
-def account_balance(t, initial_account_balance, account_balance, expenses, income, new_investments):
+def account_balance(t, initial_account_balance, account_balance, expenses, income, new_investments, new_debt):
     if t == 0:
         return initial_account_balance
     else:
-        return account_balance[t-1] + income[t] - expenses[t] - new_investments[t]
+        return account_balance[t-1] + income[t] - expenses[t] - new_investments[t] + new_debt[t-1]
 
-def debt(t, initial_debt, debt, monthly_debt_interest, monthly_debt_payment):
+def new_debt(t, account_balance):
+    if t == 0:
+        return 0
+    elif account_balance[t-1] < 0:
+        #return 0
+        return account_balance[t-1] * -1
+    else:
+        return 0
+
+
+def debt(t, initial_debt, debt, monthly_debt_interest, monthly_debt_payment, new_debt):
     if t == 0:
         return initial_debt
     else:
-        return debt[t-1] + monthly_debt_interest[t] - monthly_debt_payment[t]
+        return debt[t-1] + monthly_debt_interest[t] - monthly_debt_payment[t] + new_debt[t]
 
 def monthly_debt_payment(t, initial_monthly_debt_payment, monthly_debt_payment, debt):
     if t == 0:
@@ -48,7 +58,7 @@ def investments(t, initial_investments, investments, new_investments, investment
     else:
         return investments[t-1] + investment_growth[t] + new_investments[t]
 
-def new_investments(t, income, expenses):
+def new_investments(t, income, expenses, investment_rate):
     """ 
     going with an oversimplifed investment model where 10% of salary is invested into an index fund.
     This magic index fund always gains 5% value in a year
@@ -56,15 +66,17 @@ def new_investments(t, income, expenses):
     if t == 0:
         return 0.0
     else:
-        return max(0, min(income[t] * 0.1, income[t]-expenses[t]))
+        return max(0, min(income[t] * investment_rate, income[t]-expenses[t]))
 
-
-def expenses(t, initial_yearly_expenses, expenses, monthly_debt_payment):
+def fixed_expenses(t, initial_yearly_expenses, fixed_expenses):
     if t == 0:
         return initial_yearly_expenses / 12
     else:
-        fixed_expenses = expenses[t-1] - monthly_debt_payment[t-1]
-        return fixed_expenses * (1 + 0.02 / 12) + monthly_debt_payment[t]
+        return fixed_expenses[t-1] * (1 + 0.02 / 12)
+
+
+def expenses(t, monthly_debt_payment, fixed_expenses):
+    return fixed_expenses[t] + monthly_debt_payment[t]
 
 def income(t, monthly_salary_post_tax, bonus):
     return monthly_salary_post_tax[t] + bonus[t]
@@ -136,9 +148,9 @@ def month(t, initial_month):
     return (t + initial_month) % 12 + 1
 
 
-def bonus(t, yearly_salary, month, simplified_income_tax_rate):
+def bonus(t, yearly_salary, month):
     if month[t] == 12:
-        return yearly_salary[t] * 0.10 * (1 - simplified_income_tax_rate)
+        return yearly_salary[t] * 0.10
     else:
         return 0.0
 

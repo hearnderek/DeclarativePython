@@ -124,7 +124,6 @@ class IterativeEngine:
 
             i = 0
 
-            print(list(return_dicts[0].keys()))
             d = dict([(col, []) for col in list(return_dicts[0].keys())])
 
 
@@ -157,8 +156,6 @@ class IterativeEngine:
 
             for col, xs in result.items():
                 d[col].extend(xs)
-        for col, xs in d.items():
-            print(col, len(xs))
             
         queue.put(d)
 

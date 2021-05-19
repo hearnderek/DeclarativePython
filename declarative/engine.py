@@ -398,7 +398,7 @@ class Engine:
         bp_get_args = [None] * len(needs)
         bp_get_args2 = [None] * len(needs)
         for (pcol, pt, ptype) in needs:
-            # print('get_calc', col, t, '--', pcol, pt, ptype)
+            #print('get_calc', col, t, '--', pcol, pt, ptype)
             if pcol == 't':
                 values[i] = t
                 has_t = True
@@ -409,21 +409,22 @@ class Engine:
                 values[i] = v
                 bp_get_args[i] = f'self.results["{pcol}"][0]'
                 bp_get_args2[i] = f'{pcol}_[0]'
-            elif ptype == FORWARD_REFERENCE_TIMESERIES:
+            elif ptype | TIMESERIES:
+                v = self.get_calc(pt, pcol)
+                values[i] = self.results[pcol]
+                bp_get_args[i] = f'self.results["{pcol}"]'
+                bp_get_args2[i] = f'{pcol}_'
+            elif ptype | FORWARD_REFERENCE_TIMESERIES:
                 v = self.get_calc(pt, pcol)
                 values[i] = list(self.results[pcol])
                 bp_get_args[i] = f'self.results["{pcol}"]'
                 bp_get_args2[i] = f'{pcol}_'
-            elif ptype == BACK_REFERENCE_TIMESERIES:
+            elif ptype | BACK_REFERENCE_TIMESERIES:
                 v = self.get_calc(pt, pcol)
                 values[i] = self.results[pcol]
                 bp_get_args[i] = f'self.results["{pcol}"]'
                 bp_get_args2[i] = f'{pcol}_'
-            elif ptype == TIMESERIES:
-                v = self.get_calc(pt, pcol)
-                values[i] = self.results[pcol]
-                bp_get_args[i] = f'self.results["{pcol}"]'
-                bp_get_args2[i] = f'{pcol}_'
+            
             else:
                 print('should not happen')
             i += 1
@@ -434,7 +435,7 @@ class Engine:
         value = f.fn(*values)
 
         # pd.isna fails if value happens to be a list
-        if not isinstance(value, list) and pd.isna(value):
+        if isinstance(value, type(pd.NA)):
             # for some reason the calculation involved an NA value.
             # We'll try again later.
             return value
@@ -503,11 +504,11 @@ class Engine:
             # expected to be handled within user functions
             return 'time out of range'
 
-        #print('get_calc_no_frills', col, t)
 
         val = self.results[col][t]
         if val is not pd.NA:
             return val
+        #print('get_calc_no_frills', col, t)
 
         f = self.func_dict[col]
         needs = f.needs(t)
@@ -522,9 +523,9 @@ class Engine:
                 has_t = True
             elif ptype == SCALER:
                 # sets results at the same time
-                args[i] = self.get_calc(0, pcol)
+                args[i] = self.get_calc_no_frills(0, pcol)
             elif ptype > SCALER:
-                v = self.get_calc(pt, pcol)
+                v = self.get_calc_no_frills(pt, pcol)
                 args[i] = self.results[pcol]
             else:
                 print('should not happen')
@@ -533,9 +534,11 @@ class Engine:
         value = f.fn(*args)
         
         # pd.isna fails if value happens to be a list
-        if not isinstance(value, list) and pd.isna(value):
+        if isinstance(value, type(pd.NA)):
             # for some reason the calculation involved an NA value.
             # We'll try again later.
+            print('WARNING: returned NA')
+
             return value
 
         if has_t:
@@ -546,3 +549,4 @@ class Engine:
             
          
         return value
+

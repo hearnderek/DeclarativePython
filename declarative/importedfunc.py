@@ -2,10 +2,10 @@ import re
 import inspect
 
 T = -1
-SCALER = 0
-TIMESERIES = 1
-FORWARD_REFERENCE_TIMESERIES = 2
-BACK_REFERENCE_TIMESERIES = 3
+SCALER = int('00000000', 2)
+TIMESERIES = int('00000001', 2)
+FORWARD_REFERENCE_TIMESERIES = int('00000010', 2)
+BACK_REFERENCE_TIMESERIES = int('00000100', 2)
 
 
 class FastTupe:
@@ -109,13 +109,16 @@ class ImportedFunc:
             If we know this we can calculate a like optimal graph traversal.
         """
 
-        reg_identifer_timeseries_usages = param + r'\[t[^\]]*\]'
+        reg_identifer_timeseries_usages = r'\b' + param + r'\[t[^\]]*\]'
         timeseries_uses = re.findall(reg_identifer_timeseries_usages, code, re.MULTILINE)
 
         if len(timeseries_uses) == 0:
             return SCALER
 
-        for use in timeseries_uses:
+
+        mask = SCALER
+
+        for use in sorted(timeseries_uses):
             fw = False
             bk = False
             if '+' in use:
@@ -127,11 +130,13 @@ class ImportedFunc:
                 raise ('forward and back reference on same identifier is not supported')
 
             if fw:
-                return FORWARD_REFERENCE_TIMESERIES
+                mask |= FORWARD_REFERENCE_TIMESERIES
             elif bk:
-                return BACK_REFERENCE_TIMESERIES
+                mask |= BACK_REFERENCE_TIMESERIES
             else:
-                return TIMESERIES
+                mask |= TIMESERIES
+        
+        return mask
 
     def needs(self, t):
 
@@ -153,11 +158,20 @@ class ImportedFunc:
                 needed_t = None
                 ptype = T
                 self._has_t = True
-            elif ptype == FORWARD_REFERENCE_TIMESERIES:
+
+                """
+                00000000 s
+                00000001 ts
+                00000010 f
+                00000100 b
+                """
+            
+            # &= 0011
+            elif ptype == (FORWARD_REFERENCE_TIMESERIES | TIMESERIES) or ptype == FORWARD_REFERENCE_TIMESERIES:
                 needed_t = t + 1
-            elif ptype == BACK_REFERENCE_TIMESERIES:
+            elif ptype == BACK_REFERENCE_TIMESERIES: # ptype == (BACK_REFERENCE_TIMESERIES | TIMESERIES) or
                 needed_t = t - 1
-            elif ptype == TIMESERIES:
+            else: # if ptype == TIMESERIES or ptype == (FORWARD_REFERENCE_TIMESERIES | TIMESERIES | BACK_REFERENCE_TIMESERIES):
                 needed_t = t
 
             ls[i] = (param, needed_t, ptype)
