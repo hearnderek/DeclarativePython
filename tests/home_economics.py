@@ -170,7 +170,6 @@ if __name__ == '__main__':
         'initial_debt': [30000],
         'debt_interest_rate': [0.0376],
         'initial_monthly_debt_payment': [600],
-        'simplified_income_tax_rate': [0.25],
         'initial_year': [2013],
         'initial_month': [3],
         'investment_rate': [0.10]
