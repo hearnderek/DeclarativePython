@@ -9,3 +9,6 @@ def test_home_economics():
 
 def test_simple_example():
     runpy.run_module('simple_example', run_name='__main__')
+
+def test_simple_example():
+    runpy.run_module('nesting_engines', run_name='__main__')
