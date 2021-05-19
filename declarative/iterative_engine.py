@@ -69,17 +69,31 @@ class IterativeEngine:
             processors = max(1, int(multiprocessing.cpu_count() / 2))
         if processors == 1 or len(self.input_rows) == 1:
             i = 0
+            results = {}
             for input in self.input_rows:
                 self.engine.initialize(input, self.module)
                 if optimization is not None:
-                    self.results = self.engine.calculate(optimization=optimization)
+                    results[i] = self.engine.calculate(optimization=optimization)
                 elif len(self.input_rows) <= 2:
                     # Don't bother with any time saving calculations
-                    self.results = self.engine.calculate(optimization=5)
+                    results[i] = self.engine.calculate(optimization=5)
                 else:
-                    self.results = self.engine.calculate()
+                    results[i] = self.engine.calculate()
                 i += 1
                 # print(gc.get_count())
+
+            d = dict([(col, []) for col in list(results[0].keys()) + ['result_id']])
+
+            for i, result in results.items():
+
+                d['result_id'].extend([i for t in result['t']])
+
+                for col, xs in result.items():
+                    d[col].extend(xs)
+            
+            self.results = d
+
+            
         else:
             # TODO:
             #   - if cannot divide evenly rows at the end will be missed.
