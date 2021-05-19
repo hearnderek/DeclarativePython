@@ -40,9 +40,9 @@ if __name__ == '__main__':
     # p.nice(psutil.REALTIME_PRIORITY_CLASS)
     # p.cpu_affinity([1])
 
-    timesteps = 60 #* 24 * 35 #* 12
+    timesteps = 60 * 24 #* 35 #* 12
     processors = 3
-    repeat = 3 * processors
+    repeat = 30 * processors
     for optimization in range(1,6):
         df = pd.DataFrame([[100, 17, 0.99, 0]], columns=['initial_cash', 'fixed_expenses', 'sales_price', 'cost_per_sale'])
         df = pd.DataFrame(np.repeat(df.values, repeat, axis=0), columns=df.columns)

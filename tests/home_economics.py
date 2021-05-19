@@ -76,13 +76,12 @@ def monthly_salary(t, yearly_salary):
     return yearly_salary[t] / 12
 
 def yearly_cumulative_income(t, year, yearly_cumulative_income, monthly_salary, bonus):
-    print('yearly_cumulative_income', t, year, yearly_cumulative_income, monthly_salary, bonus)
     if t == 0 or year[t-1] != year[t]:
         return monthly_salary[t] + bonus[t]
     else:
         return yearly_cumulative_income[t-1] + monthly_salary[t] + bonus[t]
 
-def tax_brackets(t):
+def income_tax_brackets(t):
     brackets2021 = [
         (14200.000, 0.10),
         (54200.000, 0.12),
@@ -94,10 +93,10 @@ def tax_brackets(t):
     ]
     return brackets2021
 
-def monthly_income_tax(t, year, yearly_cumulative_income, monthly_salary, bonus, tax_brackets):
+def monthly_income_tax(t, year, yearly_cumulative_income, monthly_salary, bonus, income_tax_brackets):
     
     # TODO: select bracket by year
-    brackets = tax_brackets[t]
+    brackets = income_tax_brackets[t]
 
     monthly_tax = 0.0
     taxed_income = 0.0 if t == 0 or year[t-1] != year[t] else yearly_cumulative_income[t-1]

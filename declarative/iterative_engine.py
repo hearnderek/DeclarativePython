@@ -12,6 +12,12 @@ import inspect
 from pathlib import Path
 
 
+class EngineJob:
+    def __init__(self, id, process, queue):
+        self.id = id
+        self.process = process
+        self.queue = queue
+
 class IterativeEngine:
     """
     This is a top level engine which orchestrates other engines to work on a many rows of input
@@ -84,27 +90,24 @@ class IterativeEngine:
 
             splits = split_list(self.input_rows, processors)
             num_splits = len(splits)
-            jobs = [None] * num_splits
-            
-            queues = [Queue(ctx=multiprocessing.get_context()) for i in range(num_splits)]
-            dbs = [f'{self.module}{i}.sqlite' for i in range(num_splits)]
+            engine_jobs = []
             for i in range(num_splits):
-                queue = queues[i]
-                queue.put({'result_id': i})
                 newself = copy.deepcopy(self)
                 newself.input_rows = splits[i]
-                jobs[i] = multiprocessing.Process(target=newself.calculate_subset, args=(queue, optimization))
-                jobs[i].start()
+                
+                queue = Queue(ctx=multiprocessing.get_context())
+                process = multiprocessing.Process(target=newself.calculate_subset, args=(queue, optimization))
+                process.start()
 
+                engine_jobs.append(EngineJob(i, process, queue))
 
-            return_dicts = [q.get() for q in queues]
-            print('got from queues')
+            
 
-
-            for job in jobs:
-                job.join()
-
-            print('jobs done')
+            return_dicts = []
+            for engine_job in engine_jobs:
+                return_dict = {'results': engine_job.queue.get(), 'result_id': engine_job.id}
+                return_dicts.append(return_dict)
+                engine_job.process.join()
 
             i = 0
 
@@ -115,25 +118,17 @@ class IterativeEngine:
                 r = d['results']
                 self.results = d['results']
                 self.results['result_id'] = [d['result_id']] * len(r['t'])
-                print('result_id len', len(self.results['result_id']))
                 r = d['results']
-                for col, xs in r.items():
-                    print('    ', col, len(xs))
 
             # In reverse order add results to beginning of list
             for d in return_dicts[-2::-1]:
                 r = d['results']
                 self.results['result_id'][0:0] = [d['result_id']] * len(r['t'])
-                print('result_id len', len(self.results['result_id']))
                 for col, xs in r.items():
-                    print('    ', col, len(xs))
                     self.results[col][0:0] = xs
-            
-            print('result_id len', len(self.results['result_id']))
             
 
     def calculate_subset(self, queue, optimization=5):
-        return_dict = queue.get()
         i = 0
         for input in self.input_rows:
             self.engine.initialize(input, self.module)
@@ -146,10 +141,7 @@ class IterativeEngine:
                 self.results[i] = self.engine.calculate()
             i += 1
 
-        return_dict['results'] = self.engine.results
-        queue.put(return_dict)
-
-        print('subcalc done')
+        queue.put(self.engine.results)
 
     def df_columns(self):
         """
@@ -160,8 +152,6 @@ class IterativeEngine:
 
         return self.results.keys()
 
-        return columns
-
     def results_to_df(self):
         if self.__df_results is not None:
             return self.__df_results
@@ -170,9 +160,6 @@ class IterativeEngine:
         result_id and t will serve as our two indexes.
         """
         df_columns = self.df_columns()
-
-        for col, xs in self.results.items():
-            print(col, len(xs))
 
         df = pd.DataFrame.from_dict(self.results, orient='columns')
         if 'result_id' not in df_columns:
