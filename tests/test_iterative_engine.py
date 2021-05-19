@@ -17,7 +17,8 @@ def test_missing_file():
         'initial_monthly_debt_payment': [600],
         'simplified_income_tax_rate': [0.25],
         'initial_year': [2013],
-        'initial_month': [3]
+        'initial_month': [3],
+        'investment_rate': [0.10]
     }
     df = pd.DataFrame(d)
     declarative.turn_off_progress_bar = True
@@ -45,7 +46,8 @@ def test_parallel_runs_unneeded1():
         'initial_monthly_debt_payment': [600],
         'simplified_income_tax_rate': [0.25],
         'initial_year': [2013],
-        'initial_month': [3]
+        'initial_month': [3],
+        'investment_rate': [0.10]
     }
     df = pd.DataFrame(d)
     declarative.turn_off_progress_bar = True
@@ -75,7 +77,8 @@ def test_parallel_runs_unneeded2():
         'initial_monthly_debt_payment': [600],
         'simplified_income_tax_rate': [0.25],
         'initial_year': [2013],
-        'initial_month': [3]
+        'initial_month': [3],
+        'investment_rate': [0.10]
     }
     df = pd.DataFrame(d)
     declarative.turn_off_progress_bar = True
@@ -106,7 +109,8 @@ def test_length():
         'initial_monthly_debt_payment': [600, 600],
         'simplified_income_tax_rate': [0.25, 0.25],
         'initial_year': [2013, 2013],
-        'initial_month': [3, 3]
+        'initial_month': [3, 3],
+        'investment_rate': [0.10, 0.10]
     }
     df = pd.DataFrame(d)
     declarative.turn_off_progress_bar = True
@@ -136,7 +140,8 @@ def test_parallel_runs_extra_processors():
         'initial_monthly_debt_payment': [600, 600],
         'simplified_income_tax_rate': [0.25, 0.25],
         'initial_year': [2013, 2013],
-        'initial_month': [3, 3]
+        'initial_month': [3, 3],
+        'investment_rate': [0.10, 0.10]
     }
     df = pd.DataFrame(d)
     declarative.turn_off_progress_bar = True

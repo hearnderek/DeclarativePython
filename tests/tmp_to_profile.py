@@ -1,4 +1,4 @@
-def run(self, num_sales, sales, cash, initial_cash_, fixed_expenses_, sales_price_, cost_per_sale_, t_, num_sales_, cash_, sales_):
+def run(self, num_sales, sales, cash, initial_cash_, fixed_expenses_, sales_price_, cost_per_sale_, t_, sales_, num_sales_, cash_):
     num_sales_[0] = num_sales(0)
     num_sales_[1] = num_sales(1)
     num_sales_[2] = num_sales(2)
