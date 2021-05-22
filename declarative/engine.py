@@ -1,14 +1,14 @@
-from declarative.best_path import BestPath
 import pandas as pd
 import numpy as np
-
-
+import threading
 import time
+from warnings import warn
+
 from .importedfunc import ImportedFunc, FORWARD_REFERENCE_TIMESERIES, BACK_REFERENCE_TIMESERIES, SCALER, TIMESERIES, T
 from .graph import Graph
 from .progress_bar import print_progress_bar
 from .best_path import BestPath
-from warnings import warn
+from .function_markers import is_io_bound
 
 """
 Need to determine my vocabulary
@@ -163,7 +163,47 @@ class Engine:
 
 
 
-        if optimization > 0 and self.optimization_prepped(optimization):
+        if self.t == 1 and any([is_io_bound(f.fn) for f in self.func_dict.values()]):
+            
+            print('Now entering: PoC for conncurrency with io bound funcitons')
+            
+            remaining_funcs = self.func_dict.values()
+            calculated_cols = set()
+
+            while len(remaining_funcs) > 0:
+                # collect all of the user function which can be run
+                fs = []
+                io_fs = []
+                # instead of removing items from the list we're recreating the list everytime
+                waiting = []
+                for f in remaining_funcs:
+                    needs = [col for (col, t, tt) in f.needs(0) if col not in calculated_cols]
+                    if not any(needs):
+                        if is_io_bound(f.fn):
+                            io_fs.append(f)
+                        else:
+                            fs.append(f)
+                    else:
+                        waiting.append(f)
+                remaining_funcs = waiting
+
+                threads = []
+                for f in io_fs:
+                    t = threading.Thread(target=self.get_calc_no_frills, args=(0, f.identifier), daemon=True)
+                    t.start()
+                    threads.append(t)
+                    calculated_cols.add(f.identifier)
+
+                for t in threads:
+                    t.join()
+
+                for f in fs:
+                    self.get_calc_no_frills(0, f.identifier)
+                    calculated_cols.add(f.identifier)
+
+                
+                print('loop')
+        elif optimization > 0 and self.optimization_prepped(optimization):
             
             # All are identical 'perfect' passes through our dependency graph.
             # They all use different approaches with different tradeoffs.

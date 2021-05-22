@@ -1,6 +1,6 @@
 import re
 import inspect
-
+from .function_markers import is_targeted
 T = -1
 SCALER = int('00000000', 2)
 TIMESERIES = int('00000001', 2)
@@ -237,7 +237,8 @@ fs =  [f for f in functions_list if '__' not in f[0]]
             #     # print('ignoring ', identifier)
             #     continue
 
-            f = ImportedFunc(identifier, module, func)
-            l.append(f)
+            if is_targeted(func):
+                f = ImportedFunc(identifier, module, func)
+                l.append(f)
 
         return l
