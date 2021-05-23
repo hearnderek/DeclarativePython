@@ -90,7 +90,8 @@ t is a special parameter with this system that tells our engine that you are doi
 For the data savy you may have noticed the pandas DataFrame was returned by the Run function. You can write out your projections standard python then do your analysis in pandas.
 
 
-# Warning
+# Warnings
 
-I am throughly abusing python in an attempt to run millions of user functions blazingly fast.
-There 
+- I am throughly abusing python within this package. Use at your own risk.
+- I have not implemented any garbage collection, so all function results must be able to fit in memory.
+- You can only reliably use [t] [t-1] amd [t+1] when accessing values being passed around in projections. (sorry)
