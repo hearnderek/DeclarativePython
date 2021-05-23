@@ -16,6 +16,7 @@ Two major use cases are:
 ``` bash
 python -m pip install git+https://github.com/hearnderek/DeclarativePython.
 ```
+Oh yeah. I know. But I want to be able to use this on my remote system and not have to deal with pypi just yet.
 
 ## Basic usage
 
