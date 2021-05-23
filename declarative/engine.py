@@ -194,12 +194,16 @@ class Engine:
                     threads.append(t)
                     calculated_cols.add(f.identifier)
 
-                for t in threads:
-                    t.join()
-
+                # This is inbetween the start of thread and their joins so our main thread
+                # can work on our other cpu bound processes
                 for f in fs:
                     self.get_calc_no_frills(0, f.identifier)
                     calculated_cols.add(f.identifier)
+
+                for t in threads:
+                    t.join()
+
+                
 
                 
                 print('loop')
