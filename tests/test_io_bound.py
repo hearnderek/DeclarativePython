@@ -2,34 +2,34 @@ import requests
 import context
 import declarative
 
+@declarative.decorators.ignore
 def test_requests():
     declarative.Run(return_dataframe=False)
-declarative.ignore(test_requests)
 
+@declarative.decorators.io_bound
 def wikipedia():
     print('getting wikipedia')
     return requests.get('https://www.wikipedia.org/')
-declarative.io_bound(wikipedia)
 
+@declarative.decorators.io_bound
 def microsoft():
     print('getting microsoft')
     return requests.get('https://www.microsoft.com/')
-declarative.io_bound(microsoft)
 
+@declarative.decorators.io_bound
 def cnn():
     print('getting cnn')
     return requests.get('https://edition.cnn.com/')
-declarative.io_bound(cnn)
 
+@declarative.decorators.io_bound
 def benz():
     print('getting benz')
     return requests.get('https://www.mercedes-benz.com/')
-declarative.io_bound(benz)
 
+@declarative.decorators.io_bound
 def yahoo():
     print('getting yahoo')
     return requests.get('https://www.yahoo.co.jp/')
-declarative.io_bound(yahoo)
 
 def setup():
     print('nothing to setup')
