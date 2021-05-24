@@ -16,3 +16,10 @@ def is_ignored(func) -> bool:
 
 def is_targeted(func) -> bool:
     return not is_ignored(func)
+
+# just incase someone imports these functions directly
+ignore(io_bound)
+ignore(is_io_bound)
+ignore(ignore)
+ignore(is_ignored)
+ignore(is_targeted)
