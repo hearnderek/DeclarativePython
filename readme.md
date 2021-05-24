@@ -92,6 +92,60 @@ t is a special parameter with this system that tells our engine that you are doi
 
 For the data savy you may have noticed the pandas DataFrame was returned by the Run function. You can write out your projections standard python then do your analysis in pandas.
 
+## Cool, but I still want normal functions
+
+``` python
+import declarative
+
+@declarative.ignore
+def print_helper(s):
+    return(s + ' world')
+
+def f() -> str:
+    print_helper('hello')
+
+if __name__ == '__main__':
+    declarative.Run()
+```
+``` bash
+~$ python ignoreme.py
+hello world
+~$
+```
+
+## Do IO functions block everything else?
+### Naw, I got you
+``` python
+import declarative
+import time
+
+@declarative.io_bound
+def slow_one():
+    time.sleep(1)
+    return 1
+
+@declarative.io_bound
+def slow_two():
+    time.sleep(1)
+    return 2
+    
+@declarative.io_bound
+def slow_three(slow_one, slow_two):
+    time.sleep(1)
+    return slow_one + slow_two
+
+def output(slow_one, slow_two, slow_three):
+    print(slow_one + slow_two + slow_three
+
+if __name__ == '__main__':
+    # takes 2 seconds not 3
+    declarative.Run()
+```
+``` bash
+~$ python slow_io.py
+6
+~$
+```
 
 # Warnings
 
