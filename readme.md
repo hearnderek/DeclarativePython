@@ -39,12 +39,13 @@ if __name__ == '__main__':
     declarative.Run()
 ```
 
-``` bash
-> python hello_declarative.py
-> f
-> g
-> hello
-> hello world
+``` sh
+~$ python hello_declarative.py
+f
+g
+hello
+hello world
+~$ 
 ```
 
 ### Okay, what just happened? 
@@ -70,19 +71,20 @@ if __name__ == '__main__':
 ```
 
 ``` bash
-> python forward_projection.py
->              count_up
-> result_id t
-> 0         0         0
->           1         1
->           2         2
->           3         3
->           4         4
->           5         5
->           6         6
->           7         7
->           8         8
->           9         9
+~$ python forward_projection.py
+             count_up
+result_id t
+0         0         0
+          1         1
+          2         2
+          3         3
+          4         4
+          5         5
+          6         6
+          7         7
+          8         8
+          9         9
+~$  
 ```
 
 ### Woah woah woah. What?
