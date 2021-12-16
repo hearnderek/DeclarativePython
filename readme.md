@@ -29,7 +29,7 @@ def f() -> str:
     
 def g(f: str) -> str:
     print('g')
-    return foo + ' world'
+    return f + ' world'
     
 def output(f: str, g: str)
     print(f)
